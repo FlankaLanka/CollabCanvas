@@ -62,6 +62,19 @@ export function CanvasProvider({ children }) {
       store.shapes.clear();
       syncedShapes.forEach(shape => {
         store.shapes.set(shape.id, shape);
+        
+        // Apply any pending position updates for this shape
+        const pendingUpdate = pendingUpdatesRef.current.get(shape.id);
+        if (pendingUpdate) {
+          console.log('🔄 Applying cached position update for newly loaded shape:', shape.id, {
+            x: pendingUpdate.x, 
+            y: pendingUpdate.y,
+            age: Date.now() - pendingUpdate.timestamp + 'ms'
+          });
+          shape.x = pendingUpdate.x;
+          shape.y = pendingUpdate.y;
+          pendingUpdatesRef.current.delete(shape.id);
+        }
       });
       triggerUpdate(); // Force React re-render when shapes sync from database
       console.log('🔄 Synced shapes to store:', syncedShapes.length);
@@ -69,6 +82,14 @@ export function CanvasProvider({ children }) {
   }, [syncedShapes, store, triggerUpdate]);
 
   // ===== REAL-TIME POSITION UPDATES =====
+  // RACE CONDITION HANDLING:
+  // In collaborative environments, position updates from Realtime Database may arrive 
+  // before shape creation from Firestore. This is expected behavior due to:
+  // - Firestore: Persistent shape data (slower, consistent)
+  // - Realtime DB: High-frequency position updates (faster, transient)
+  const pendingUpdatesRef = useRef(new Map()); // Cache updates for unknown shapes
+  const unknownShapeLogThrottle = useRef(new Map()); // Throttle unknown shape logs
+
   const handleRealtimePositionUpdate = useCallback((positionUpdates) => {
     let updatedAny = false;
     
@@ -77,6 +98,9 @@ export function CanvasProvider({ children }) {
       const shape = store.shapes.get(id);
       
       if (shape) {
+        // Clear any pending updates for this shape since we now have it
+        pendingUpdatesRef.current.delete(id);
+        
         // Only block real-time updates if WE are currently dragging this shape locally
         // Allow updates from other users even if the shape is selected
         if (!store.isDragging) {
@@ -88,7 +112,21 @@ export function CanvasProvider({ children }) {
           console.log('🚫 Blocked real-time update (local drag active) for shape:', id, shape.type, pos);
         }
       } else {
-        console.log('❌ Received update for unknown shape:', id, pos);
+        // Shape doesn't exist yet - this is normal in collaborative environments
+        // Cache the update with timestamp for cleanup
+        pendingUpdatesRef.current.set(id, {
+          ...pos,
+          timestamp: Date.now()
+        });
+        
+        // Throttle console warnings to prevent spam (max 1 per shape per 5 seconds)
+        const now = Date.now();
+        const lastLog = unknownShapeLogThrottle.current.get(id) || 0;
+        if (now - lastLog > 5000 && process.env.NODE_ENV === 'development') {
+          console.warn('⏳ Position update received for pending shape:', id.substring(0, 20) + '...', 
+            '(Normal in collaborative mode - cached for when shape loads)');
+          unknownShapeLogThrottle.current.set(id, now);
+        }
       }
     });
     
@@ -99,6 +137,31 @@ export function CanvasProvider({ children }) {
   }, [store, triggerUpdate]);
 
   useRealtimePositions(handleRealtimePositionUpdate);
+
+  // Cleanup stale pending updates periodically
+  useEffect(() => {
+    const cleanupInterval = setInterval(() => {
+      const now = Date.now();
+      const staleThreshold = 30000; // 30 seconds
+      
+      // Clean up pending updates older than threshold
+      for (const [shapeId, update] of pendingUpdatesRef.current.entries()) {
+        if (update.timestamp && (now - update.timestamp > staleThreshold)) {
+          console.log('🧹 Cleaning up stale pending update for shape:', shapeId);
+          pendingUpdatesRef.current.delete(shapeId);
+        }
+      }
+      
+      // Clean up throttle map entries older than threshold
+      for (const [shapeId, timestamp] of unknownShapeLogThrottle.current.entries()) {
+        if (now - timestamp > staleThreshold) {
+          unknownShapeLogThrottle.current.delete(shapeId);
+        }
+      }
+    }, 60000); // Run cleanup every minute
+    
+    return () => clearInterval(cleanupInterval);
+  }, []);
 
   // ===== SIMPLE ACTION IMPLEMENTATIONS =====
 

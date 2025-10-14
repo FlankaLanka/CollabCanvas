@@ -1,17 +1,12 @@
 import { useState, useRef, useEffect } from 'react';
 import { useAI } from '../../hooks/useAI';
-import { useCanvas } from '../../contexts/ModernCanvasContext';
 
 function AIChat() {
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState('');
   const { sendMessage, conversation, isProcessing, error, clearConversation } = useAI();
-  const { selectedIds, getSelectedShapes } = useCanvas();
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
-  
-  const selectedShapes = getSelectedShapes();
-  const hasSelection = selectedIds.length > 0;
 
   // Scroll to bottom of conversation
   const scrollToBottom = () => {
@@ -50,27 +45,19 @@ function AIChat() {
     }
   };
 
-  // Example commands to show users (context-aware)
+  // Example commands to show users
   const getExampleCommands = () => {
-    if (hasSelection) {
-      return [
-        "Make the selected shapes red",
-        "Rotate these shapes 45 degrees",
-        "Move these shapes to the right",
-        "Arrange the selected shapes in a row",
-        "Make the selected text bigger",
-        "Duplicate the selection"
-      ];
-    } else {
-      return [
-        "Create a blue rectangle in the center",
-        "Add a red circle at position 200, 300", 
-        "Make a login form",
-        "Create a navigation bar with Home, About, Contact",
-        "Arrange all shapes in a row",
-        "Build a card layout with title 'Welcome'"
-      ];
-    }
+    return [
+      "Create a login form",
+      "Make a navigation bar with Home, About, Contact", 
+      "Build a card layout with title 'Welcome'",
+      "Create 5 blue circles in a row",
+      "Make 3 red rectangles in a grid",
+      "Create 4 triangles scattered around",
+      "Add a red circle at position 300, 200",
+      "Make a blue rectangle with size 150x100",
+      "Create text that says Hello World"
+    ];
   };
   
   const exampleCommands = getExampleCommands();
@@ -200,23 +187,6 @@ function AIChat() {
 
             <div ref={messagesEndRef} />
           </div>
-
-          {/* Selection Context */}
-          {hasSelection && (
-            <div className="px-4 py-2 bg-blue-50 border-t border-gray-200 border-b border-blue-200">
-              <div className="flex items-center space-x-2">
-                <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <span className="text-sm text-blue-700 font-medium">
-                  {selectedIds.length} shape{selectedIds.length > 1 ? 's' : ''} selected
-                </span>
-              </div>
-              <p className="text-xs text-blue-600 mt-1">
-                AI commands will operate on your selected shapes
-              </p>
-            </div>
-          )}
 
           {/* Input */}
           <div className="p-4 border-t border-gray-200">

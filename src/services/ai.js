@@ -1,5 +1,11 @@
 import OpenAI from 'openai';
 import { SHAPE_TYPES, DEFAULT_SHAPE_PROPS, COLOR_PALETTE } from '../utils/constants';
+import { 
+  getViewportCenter as getImprovedViewportCenter, 
+  snapPositionToGrid, 
+  getCanvasBounds,
+  LAYOUT_CONSTANTS 
+} from './aiLayoutHelpers';
 
 // Initialize OpenAI client
 const openai = new OpenAI({
@@ -50,6 +56,66 @@ const AI_FUNCTIONS = [
         }
       },
       required: ['shapeType', 'x', 'y']
+    }
+  },
+  {
+    name: 'createMultipleShapes',
+    description: 'Create multiple shapes of the same type at once. Use this for requests like "create 5 circles" or "make 3 rectangles".',
+    parameters: {
+      type: 'object',
+      properties: {
+        shapeType: {
+          type: 'string',
+          enum: ['rectangle', 'circle', 'triangle'],
+          description: 'Type of shapes to create'
+        },
+        count: {
+          type: 'number',
+          minimum: 2,
+          maximum: 20,
+          description: 'Number of shapes to create (2-20)'
+        },
+        startX: {
+          type: 'number',
+          description: 'Starting X position for the first shape'
+        },
+        startY: {
+          type: 'number',
+          description: 'Starting Y position for the first shape'
+        },
+        spacing: {
+          type: 'number',
+          description: 'Space between shapes (default 80px)',
+          default: 80
+        },
+        arrangement: {
+          type: 'string',
+          enum: ['row', 'column', 'grid', 'scattered'],
+          description: 'How to arrange the shapes',
+          default: 'row'
+        },
+        width: {
+          type: 'number',
+          description: 'Width of the shapes (for rectangles)'
+        },
+        height: {
+          type: 'number',
+          description: 'Height of the shapes (for rectangles)'
+        },
+        radius: {
+          type: 'number',
+          description: 'Radius of the shapes (for circles)'
+        },
+        scale: {
+          type: 'number',
+          description: 'Scale factor for triangles (default 1.0)'
+        },
+        fill: {
+          type: 'string',
+          description: 'Color of the shapes (hex code or color name)'
+        }
+      },
+      required: ['shapeType', 'count', 'startX', 'startY']
     }
   },
   {
@@ -278,43 +344,43 @@ const AI_FUNCTIONS = [
   },
   {
     name: 'createLoginForm',
-    description: 'Create a complete login form with username, password, and submit button',
+    description: 'Create a complete login form with username, password, and submit button. Automatically positioned in viewport center if no coordinates specified.',
     parameters: {
       type: 'object',
       properties: {
         x: {
           type: 'number',
-          description: 'X position for the form'
+          description: 'Optional X position for the form (defaults to viewport center)'
         },
         y: {
           type: 'number',
-          description: 'Y position for the form'
+          description: 'Optional Y position for the form (defaults to viewport center)'
         },
         width: {
           type: 'number',
-          description: 'Width of the form elements'
+          description: 'Optional width of the form elements (defaults to responsive width)'
         }
       },
-      required: ['x', 'y']
+      required: []
     }
   },
   {
     name: 'createNavBar',
-    description: 'Create a navigation bar with menu items',
+    description: 'Create a navigation bar with menu items. Automatically positioned in viewport if no coordinates specified.',
     parameters: {
       type: 'object',
       properties: {
         x: {
           type: 'number',
-          description: 'X position for the nav bar'
+          description: 'Optional X position for the nav bar (defaults to viewport positioning)'
         },
         y: {
           type: 'number',
-          description: 'Y position for the nav bar'
+          description: 'Optional Y position for the nav bar (defaults to viewport positioning)'
         },
         width: {
           type: 'number',
-          description: 'Total width of the nav bar'
+          description: 'Total width of the nav bar (default 800px)'
         },
         menuItems: {
           type: 'array',
@@ -322,30 +388,30 @@ const AI_FUNCTIONS = [
           description: 'Array of menu item names'
         }
       },
-      required: ['x', 'y', 'menuItems']
+      required: ['menuItems']
     }
   },
   {
     name: 'createCardLayout',
-    description: 'Create a card layout with title, content area, and optional action buttons',
+    description: 'Create a card layout with title, content area, and optional action buttons. Automatically positioned in viewport if no coordinates specified.',
     parameters: {
       type: 'object',
       properties: {
         x: {
           type: 'number',
-          description: 'X position for the card'
+          description: 'Optional X position for the card (defaults to viewport center)'
         },
         y: {
           type: 'number',
-          description: 'Y position for the card'
+          description: 'Optional Y position for the card (defaults to viewport center)'
         },
         width: {
           type: 'number',
-          description: 'Width of the card'
+          description: 'Width of the card (default 300px)'
         },
         height: {
           type: 'number',
-          description: 'Height of the card'
+          description: 'Height of the card (default 200px)'
         },
         title: {
           type: 'string',
@@ -356,112 +422,7 @@ const AI_FUNCTIONS = [
           description: 'Card content/description text'
         }
       },
-      required: ['x', 'y', 'width', 'height', 'title']
-    }
-  },
-  // Selection-aware functions for multi-shape operations
-  {
-    name: 'modifySelectedShapes',
-    description: 'Modify properties of currently selected shapes (color, size, position, etc.)',
-    parameters: {
-      type: 'object',
-      properties: {
-        property: {
-          type: 'string',
-          enum: ['fill', 'width', 'height', 'radius', 'scale', 'fontSize', 'x', 'y', 'rotation'],
-          description: 'Property to modify on selected shapes'
-        },
-        value: {
-          type: 'number',
-          description: 'New value for the property (use color name or hex for fill)'
-        },
-        colorValue: {
-          type: 'string',
-          description: 'New color value (for fill property only)'
-        },
-        offsetX: {
-          type: 'number',
-          description: 'X offset to apply to all selected shapes (relative movement)'
-        },
-        offsetY: {
-          type: 'number',
-          description: 'Y offset to apply to all selected shapes (relative movement)'
-        }
-      },
-      required: ['property']
-    }
-  },
-  {
-    name: 'arrangeSelectedShapes',
-    description: 'Arrange currently selected shapes in a specific layout (row, column, grid, circle)',
-    parameters: {
-      type: 'object',
-      properties: {
-        arrangement: {
-          type: 'string',
-          enum: ['row', 'column', 'grid', 'circle', 'center'],
-          description: 'Type of arrangement to apply to selected shapes'
-        },
-        spacing: {
-          type: 'number',
-          description: 'Space between shapes in the arrangement (default 20px)',
-          default: 20
-        },
-        centerX: {
-          type: 'number',
-          description: 'Center X position for the arrangement'
-        },
-        centerY: {
-          type: 'number',
-          description: 'Center Y position for the arrangement'
-        }
-      },
-      required: ['arrangement']
-    }
-  },
-  {
-    name: 'duplicateSelectedShapes',
-    description: 'Create copies of the currently selected shapes',
-    parameters: {
-      type: 'object',
-      properties: {
-        offsetX: {
-          type: 'number',
-          description: 'X offset for the duplicated shapes (default 50px)',
-          default: 50
-        },
-        offsetY: {
-          type: 'number',
-          description: 'Y offset for the duplicated shapes (default 50px)',
-          default: 50
-        },
-        count: {
-          type: 'number',
-          description: 'Number of copies to create (default 1)',
-          default: 1
-        }
-      }
-    }
-  },
-  {
-    name: 'alignSelectedShapes',
-    description: 'Align currently selected shapes relative to each other or to the canvas',
-    parameters: {
-      type: 'object',
-      properties: {
-        alignment: {
-          type: 'string',
-          enum: ['left', 'center', 'right', 'top', 'middle', 'bottom'],
-          description: 'How to align the selected shapes'
-        },
-        relativeTo: {
-          type: 'string',
-          enum: ['shapes', 'canvas'],
-          description: 'Align relative to other shapes or canvas bounds',
-          default: 'shapes'
-        }
-      },
-      required: ['alignment']
+      required: ['title']
     }
   }
 ];
@@ -489,26 +450,17 @@ export function parseColor(colorInput) {
   return colorMap[colorInput.toLowerCase()] || '#3B82F6';
 }
 
-// Helper function to get viewport center
+// Legacy helper function - now delegates to improved layout helpers
 export function getViewportCenter(stageRef, stageScale = 1, stagePosition = { x: 0, y: 0 }) {
-  if (!stageRef?.current) {
-    return { x: 400, y: 300 };
-  }
-
-  const stage = stageRef.current;
-  const container = stage.container();
-  if (!container) {
-    return { x: 400, y: 300 };
-  }
-
-  const containerRect = container.getBoundingClientRect();
-  const containerCenterX = containerRect.width / 2;
-  const containerCenterY = containerRect.height / 2;
-
-  const canvasX = (containerCenterX - stagePosition.x) / stageScale;
-  const canvasY = (containerCenterY - stagePosition.y) / stageScale;
-
-  return { x: canvasX, y: canvasY };
+  // Create canvas context from parameters
+  const canvasContext = {
+    stageRef,
+    stageScale,
+    stagePosition
+  };
+  
+  // Use improved layout helper that includes grid snapping
+  return getImprovedViewportCenter(canvasContext);
 }
 
 // Main AI service class
@@ -533,52 +485,82 @@ export class AICanvasService {
         content: userMessage
       });
 
-      // Get current canvas state and selection context
+      // Get current canvas state
       const canvasState = this.canvasAPI.getCanvasState();
-      const selectedShapes = this.canvasAPI.canvas.getSelectedShapes();
-      const selectionContext = {
-        hasSelection: selectedShapes.length > 0,
-        selectedCount: selectedShapes.length,
-        selectedShapes: selectedShapes.map(shape => ({
-          id: shape.id,
-          type: shape.type,
-          x: Math.round(shape.x),
-          y: Math.round(shape.y),
-          fill: shape.fill,
-          text: shape.text
-        }))
-      };
       
-      // Prepare system message with canvas and selection context
+      // Prepare system message with canvas context
       const systemMessage = {
         role: 'system',
-        content: `You are an AI assistant that manipulates a collaborative canvas through function calls. 
+        content: `You are an AI assistant that manipulates a collaborative canvas through function calls. You excel at understanding user intent and creating well-positioned, aesthetically pleasing layouts.
 
-Current canvas state: ${JSON.stringify(canvasState, null, 2)}
+CURRENT CONTEXT:
+Canvas state: ${JSON.stringify(canvasState, null, 2)}
 
-Selection context: ${JSON.stringify(selectionContext, null, 2)}
+AVAILABLE SHAPES: rectangles, circles, triangles, text, text_input
+AVAILABLE COLORS: ${COLOR_PALETTE.join(', ')} or any hex code (#RRGGBB format)
 
-Available shapes: rectangles, circles, triangles, text, and text_input.
-Available colors: ${COLOR_PALETTE.join(', ')} or any hex code.
+FUNCTION SELECTION GUIDELINES:
 
-Guidelines:
-- Use the getCanvasState function to understand current canvas contents
-- If shapes are selected, prefer using selection-aware functions (modifySelectedShapes, arrangeSelectedShapes, etc.)
-- For selection-aware commands like "make these red" or "arrange in a row", use the appropriate selection functions
-- Position new shapes thoughtfully - avoid overlapping unless requested
-- For "center" positions, use coordinates around (400, 300) as a reference
-- When creating forms or layouts, ensure proper spacing and alignment
-- For complex layouts, break into multiple function calls
-- Always provide immediate, clear feedback about what you're creating
+🔢 QUANTITY HANDLING:
+- For requests with quantities (e.g., "create 5 circles", "make 3 rectangles"):
+  → Use createMultipleShapes() function
+  → Choose appropriate arrangement: 'row', 'column', 'grid', or 'scattered'
+  → Consider spacing (default 80px, adjust for aesthetics)
 
-Selection-aware functions:
-- modifySelectedShapes: Change properties (color, size, position, rotation) of selected shapes
-- arrangeSelectedShapes: Arrange selected shapes in layouts (row, column, grid, circle, center)
-- duplicateSelectedShapes: Create copies of selected shapes
-- alignSelectedShapes: Align selected shapes to each other or canvas
-- rotateShape: Rotate individual shapes by degrees (0-360)
+📍 POSITIONING STRATEGY:
+- All positions are automatically snapped to 8px grid for consistency
+- Use viewport center (dynamic based on user's current view)
+- Elements are kept within canvas bounds automatically
+- Avoid overlapping with existing shapes when possible
+- Leave generous spacing for readability (20px vertical, 16px horizontal defaults)
 
-Be creative but practical with positioning and sizing.`
+🎨 LAYOUT FUNCTIONS (SMART POSITIONING):
+- createLoginForm(): Complete form with proper labels, inputs, and button
+  → CALL WITHOUT coordinates for automatic viewport centering: createLoginForm({})
+  → The system will automatically position it optimally in the user's current view
+- createNavBar(): Horizontal navigation with evenly distributed menu items
+- createCardLayout(): Structured card with title, content, and styling
+
+⚠️ CRITICAL POSITIONING RULES:
+- For UI layouts (forms, cards, navigation): OMIT x/y coordinates to enable smart centering
+- For individual shapes: Provide specific coordinates only when user specifies location
+- NEVER use coordinates like (0,0) or arbitrary small numbers for UI layouts
+
+🎯 SHAPE MANIPULATION:
+- createShape(): Create individual shapes with specific properties
+- createText(): Add text or text input elements
+- moveShape(): Move existing shapes to new positions
+- resizeShape(): Change size/dimensions of shapes
+- rotateShape(): Rotate shapes by degrees
+- changeShapeColor(): Update shape colors
+- deleteShape(): Remove shapes from canvas
+
+📏 SPACING & ALIGNMENT:
+- All layouts use consistent spacing (20px vertical, 16px horizontal defaults)
+- Forms: Professional spacing with proper labels and field alignment
+- Multiple shapes: Smart spacing based on arrangement type
+- Text alignment: 'left' for labels, 'center' for titles, 'left' for inputs
+- Elements are automatically grouped for easier manipulation
+
+🎯 USER INTENT RECOGNITION:
+- "create a login form" → createLoginForm({}) // NO coordinates for auto-centering!
+- "make a login form" → createLoginForm({}) // Let system choose optimal position
+- "add login form at 300, 200" → createLoginForm({ x: 300, y: 200 }) // Only when user specifies
+- "create navigation with Home, About" → createNavBar({ menuItems: ["Home", "About"] }) // Auto-positioned
+- "make a card with Welcome title" → createCardLayout({ title: "Welcome" }) // Auto-centered  
+- "5 circles" → createMultipleShapes with count=5, arrangement='row'
+- "move the red circle" → moveShape to new position
+- "make the rectangle bigger" → resizeShape with new dimensions
+
+📋 POSITIONING EXAMPLES:
+✅ CORRECT: createLoginForm({}) // Auto-centers in viewport
+✅ CORRECT: createNavBar({ menuItems: ["Home", "About"] }) // Auto-positions at top
+✅ CORRECT: createCardLayout({ title: "Welcome", content: "Hello" }) // Auto-centers
+✅ CORRECT: createLoginForm({ width: 350 }) // Custom width, auto-position
+❌ WRONG: createLoginForm({ x: 0, y: 0 }) // Don't default to origin
+❌ WRONG: createNavBar({ x: 100, y: 50, menuItems: ["Home"] }) // Don't guess coordinates
+
+Always provide clear, immediate feedback about what you're creating and where. Focus on individual shape operations rather than selection-based operations.`
       };
 
       // Make AI request with function calling
@@ -662,6 +644,9 @@ Be creative but practical with positioning and sizing.`
       case 'createShape':
         return await this.canvasAPI.createShape(parsedArgs);
       
+      case 'createMultipleShapes':
+        return await this.canvasAPI.createMultipleShapes(parsedArgs);
+      
       case 'createText':
         return await this.canvasAPI.createText(parsedArgs);
         
@@ -697,19 +682,6 @@ Be creative but practical with positioning and sizing.`
         
       case 'createCardLayout':
         return await this.canvasAPI.createCardLayout(parsedArgs);
-        
-      // Selection-aware functions
-      case 'modifySelectedShapes':
-        return await this.canvasAPI.modifySelectedShapes(parsedArgs);
-        
-      case 'arrangeSelectedShapes':
-        return await this.canvasAPI.arrangeSelectedShapes(parsedArgs);
-        
-      case 'duplicateSelectedShapes':
-        return await this.canvasAPI.duplicateSelectedShapes(parsedArgs);
-        
-      case 'alignSelectedShapes':
-        return await this.canvasAPI.alignSelectedShapes(parsedArgs);
         
       default:
         throw new Error(`Unknown function: ${name}`);
