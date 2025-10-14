@@ -2,7 +2,6 @@ import { useCallback, useRef, useEffect } from 'react';
 import { Rect, Circle, Line, Text, Group } from 'react-konva';
 import { useCanvas } from '../../contexts/ModernCanvasContext';
 import { SHAPE_TYPES } from '../../utils/constants';
-import { usePresence } from '../../hooks/usePresence';
 
 /**
  * Unified Shape Component - Works with all interaction models
@@ -10,8 +9,12 @@ import { usePresence } from '../../hooks/usePresence';
  * - Drag = Immediate drag on mouse move with database sync
  * - Right-click = Delete
  * - Global mouse tracking prevents desync
+ * 
+ * NOTE: updateCursor is passed as prop from Canvas component to avoid
+ * each shape managing its own presence lifecycle (which would cause
+ * users to be removed from presence when shapes are deleted)
  */
-function UnifiedShape({ shape, isSelected }) {
+function UnifiedShape({ shape, isSelected, updateCursor }) {
   const { 
     selectShape,
     deleteShape,
@@ -21,9 +24,6 @@ function UnifiedShape({ shape, isSelected }) {
     isDragging,
     stageRef
   } = useCanvas();
-
-  // Get cursor update function from presence hook
-  const { updateCursor } = usePresence();
 
   // Interaction state - reliable drag tracking
   const isMouseDown = useRef(false);

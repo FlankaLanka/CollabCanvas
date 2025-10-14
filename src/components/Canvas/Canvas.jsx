@@ -34,6 +34,7 @@ function Canvas() {
   // Presence tracking (users & cursors)
   const {
     userCursors,
+    updateCursor,
     updateCursorFromEvent,
     isActive: isPresenceActive
   } = usePresence();
@@ -265,6 +266,7 @@ function Canvas() {
                key={shape.id} 
                shape={shape} 
                isSelected={selectedIds.includes(shape.id)}
+               updateCursor={updateCursor}
              />
            ))}
            
