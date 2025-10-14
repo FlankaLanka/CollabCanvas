@@ -1,0 +1,27 @@
+📋 COPY THESE TO VERCEL ENVIRONMENT VARIABLES:
+
+Name: VITE_FIREBASE_API_KEY
+Value: your_firebase_api_key_here
+
+Name: VITE_FIREBASE_AUTH_DOMAIN  
+Value: your-project.firebaseapp.com
+
+Name: VITE_FIREBASE_PROJECT_ID
+Value: your_firebase_project_id
+
+Name: VITE_FIREBASE_STORAGE_BUCKET
+Value: your-project.appspot.com
+
+Name: VITE_FIREBASE_MESSAGING_SENDER_ID
+Value: your_messaging_sender_id
+
+Name: VITE_FIREBASE_APP_ID
+Value: your_firebase_app_id
+
+Name: VITE_FIREBASE_DATABASE_URL
+Value: https://your-project-default-rtdb.firebaseio.com/
+
+🔥 GET THESE VALUES FROM:
+Firebase Console → Project Settings → General → Your apps → Config
+
+⚠️  IMPORTANT: Set all environment variables to "Production, Preview, and Development"
