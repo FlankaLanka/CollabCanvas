@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import UserCursor from './UserCursor';
-import { useCanvas } from '../../contexts/CanvasContext';
+import { useCanvas } from '../../contexts/ModernCanvasContext';
 
 /**
  * Cursor Layer Component - Renders all user cursors

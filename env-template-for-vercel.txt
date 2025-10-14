@@ -21,7 +21,11 @@ Value: your_firebase_app_id
 Name: VITE_FIREBASE_DATABASE_URL
 Value: https://your-project-default-rtdb.firebaseio.com/
 
+Name: VITE_OPENAI_API_KEY
+Value: your_openai_api_key_here
+
 🔥 GET THESE VALUES FROM:
-Firebase Console → Project Settings → General → Your apps → Config
+• Firebase Console → Project Settings → General → Your apps → Config  
+• OpenAI Platform → https://platform.openai.com/api-keys
 
 ⚠️  IMPORTANT: Set all environment variables to "Production, Preview, and Development"

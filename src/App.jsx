@@ -7,13 +7,13 @@ import Toolbar from './components/Toolbar';
 import OnlineUsers from './components/OnlineUsers';
 import Canvas from './components/Canvas/Canvas';
 import CanvasControls from './components/Canvas/CanvasControls';
-import { CanvasProvider, useCanvas } from './contexts/CanvasContext';
+import { CanvasProvider, useCanvas } from './contexts/ModernCanvasContext';
 import { useAuth } from './hooks/useAuth';
 import './index.css';
 
 // Canvas App component with keyboard shortcuts
 function CanvasApp() {
-  const { deleteSelectedShape, selectedId } = useCanvas();
+  const { deleteSelectedShapes, selectedId } = useCanvas();
 
   // Handle keyboard shortcuts
   useEffect(() => {
@@ -21,13 +21,13 @@ function CanvasApp() {
       // Delete selected shape with Delete or Backspace key
       if ((e.key === 'Delete' || e.key === 'Backspace') && selectedId) {
         e.preventDefault();
-        deleteSelectedShape();
+        deleteSelectedShapes();
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [deleteSelectedShape, selectedId]);
+  }, [deleteSelectedShapes, selectedId]);
 
   return (
     <div className="h-screen bg-gray-50 flex flex-col">
@@ -38,13 +38,15 @@ function CanvasApp() {
         <Toolbar />
         
         {/* Main Canvas Area */}
-        <div className="flex-1 relative">
+        <div className="flex-1 relative min-w-0">
           <Canvas />
           <CanvasControls />
         </div>
         
-        {/* Right Panel - Online Users */}
-        <OnlineUsers />
+        {/* Right Panel - Online Users (hidden on very small screens) */}
+        <div className="hidden sm:block">
+          <OnlineUsers />
+        </div>
       </main>
     </div>
   );

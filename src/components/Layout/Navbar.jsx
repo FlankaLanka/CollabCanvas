@@ -39,14 +39,14 @@ function Navbar() {
 
   return (
     <nav className="bg-white shadow-sm border-b border-gray-200">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between h-16">
+      <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-8">
+        <div className="flex justify-between h-12 sm:h-16">
           {/* Left side - App branding */}
           <div className="flex items-center">
             <div className="flex-shrink-0 flex items-center">
-              <div className="h-8 w-8 bg-indigo-600 rounded-lg flex items-center justify-center">
+              <div className="h-6 w-6 sm:h-8 sm:w-8 bg-indigo-600 rounded-lg flex items-center justify-center">
                 <svg 
-                  className="h-5 w-5 text-white" 
+                  className="h-3 w-3 sm:h-5 sm:w-5 text-white" 
                   fill="none" 
                   stroke="currentColor" 
                   viewBox="0 0 24 24"
@@ -59,19 +59,20 @@ function Navbar() {
                   />
                 </svg>
               </div>
-              <h1 className="ml-3 text-xl font-bold text-gray-900">
-                CollabCanvas
+              <h1 className="ml-2 sm:ml-3 text-lg sm:text-xl font-bold text-gray-900">
+                <span className="hidden sm:inline">CollabCanvas</span>
+                <span className="sm:hidden">Collab</span>
               </h1>
-              <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+              <span className="ml-1 sm:ml-2 inline-flex items-center px-1.5 sm:px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                 MVP
               </span>
             </div>
           </div>
 
           {/* Right side - User menu */}
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-2 sm:space-x-4">
             {/* Connection status */}
-            <div className="flex items-center space-x-2">
+            <div className="hidden md:flex items-center space-x-2">
               <div className="w-2 h-2 bg-green-400 rounded-full"></div>
               <span className="text-sm text-gray-600">
                 {currentUser ? 'Connected' : 'Demo Mode'}
@@ -80,14 +81,14 @@ function Navbar() {
 
             {/* User info */}
             {currentUser && (
-              <div className="flex items-center space-x-3">
-                <span className="text-sm text-gray-700">
+              <div className="flex items-center space-x-2 sm:space-x-3">
+                <span className="hidden sm:inline text-sm text-gray-700">
                   Welcome, {getDisplayName(currentUser)}
                 </span>
                 
                 {/* User avatar */}
-                <div className="h-8 w-8 bg-indigo-100 rounded-full flex items-center justify-center">
-                  <span className="text-sm font-medium text-indigo-600">
+                <div className="h-6 w-6 sm:h-8 sm:w-8 bg-indigo-100 rounded-full flex items-center justify-center">
+                  <span className="text-xs sm:text-sm font-medium text-indigo-600">
                     {getUserInitials(currentUser)}
                   </span>
                 </div>
@@ -96,17 +97,18 @@ function Navbar() {
                 <button
                   onClick={handleLogout}
                   disabled={isLoggingOut}
-                  className="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="inline-flex items-center px-2 sm:px-3 py-1 sm:py-1.5 border border-gray-300 shadow-sm text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isLoggingOut ? (
                     <>
-                      <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-gray-400 mr-1"></div>
-                      Signing out...
+                      <div className="animate-spin rounded-full h-2 w-2 sm:h-3 sm:w-3 border-b-2 border-gray-400 mr-1"></div>
+                      <span className="hidden sm:inline">Signing out...</span>
+                      <span className="sm:hidden">...</span>
                     </>
                   ) : (
                     <>
                       <svg 
-                        className="h-3 w-3 mr-1" 
+                        className="h-3 w-3 sm:mr-1" 
                         fill="none" 
                         stroke="currentColor" 
                         viewBox="0 0 24 24"
@@ -115,10 +117,10 @@ function Navbar() {
                           strokeLinecap="round" 
                           strokeLinejoin="round" 
                           strokeWidth={2} 
-                          d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" 
+                          d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013 3v1" 
                         />
                       </svg>
-                      Sign out
+                      <span className="hidden sm:inline">Sign out</span>
                     </>
                   )}
                 </button>
@@ -127,12 +129,13 @@ function Navbar() {
 
             {/* Demo mode indicator */}
             {!currentUser && (
-              <div className="flex items-center space-x-3">
-                <span className="text-sm text-gray-500">
+              <div className="flex items-center space-x-2 sm:space-x-3">
+                <span className="hidden sm:inline text-sm text-gray-500">
                   Demo Mode (No Auth)
                 </span>
-                <div className="h-8 w-8 bg-gray-100 rounded-full flex items-center justify-center">
-                  <span className="text-sm font-medium text-gray-500">D</span>
+                <span className="sm:hidden text-xs text-gray-500">Demo</span>
+                <div className="h-6 w-6 sm:h-8 sm:w-8 bg-gray-100 rounded-full flex items-center justify-center">
+                  <span className="text-xs sm:text-sm font-medium text-gray-500">D</span>
                 </div>
               </div>
             )}

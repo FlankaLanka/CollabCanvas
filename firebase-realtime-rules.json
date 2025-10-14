@@ -1,0 +1,57 @@
+{
+  "rules": {
+    ".read": "auth != null",
+    ".write": "auth != null",
+    
+    "canvases": {
+      "$canvasId": {
+        ".read": "auth != null",
+        ".write": "auth != null",
+        
+        "shapes": {
+          "$shapeId": {
+            ".read": "auth != null",
+            ".write": "auth != null"
+          }
+        },
+        
+        "realtime": {
+          "positions": {
+            "$shapeId": {
+              ".read": "auth != null", 
+              ".write": "auth != null"
+            }
+          },
+          
+          "dragStates": {
+            "$shapeId": {
+              ".read": "auth != null",
+              ".write": "auth != null"
+            }
+          },
+          
+          "cursors": {
+            "$userId": {
+              ".read": "auth != null",
+              ".write": "auth.uid == $userId"
+            }
+          },
+          
+          "presence": {
+            "$userId": {
+              ".read": "auth != null",
+              ".write": "auth.uid == $userId"
+            }
+          }
+        }
+      }
+    },
+    
+    "users": {
+      "$userId": {
+        ".read": "auth != null",
+        ".write": "auth.uid == $userId"
+      }
+    }
+  }
+}

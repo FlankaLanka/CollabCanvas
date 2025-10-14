@@ -8,14 +8,14 @@ function InteractionGuide() {
   };
 
   return (
-    <div className="absolute top-4 left-4 z-20">
+    <div className="absolute top-2 left-2 sm:top-4 sm:left-4 z-20">
       {/* Help Button */}
       <button
         onClick={toggleVisibility}
-        className="w-10 h-10 bg-white rounded-full shadow-lg border border-gray-200 flex items-center justify-center text-gray-600 hover:text-blue-600 hover:border-blue-300 transition-colors"
+        className="w-8 h-8 sm:w-10 sm:h-10 bg-white rounded-full shadow-lg border border-gray-200 flex items-center justify-center text-gray-600 hover:text-blue-600 hover:border-blue-300 transition-colors"
         title="Interaction Guide"
       >
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path 
             strokeLinecap="round" 
             strokeLinejoin="round" 
@@ -27,7 +27,7 @@ function InteractionGuide() {
 
       {/* Tooltip/Guide Panel */}
       {isVisible && (
-        <div className="absolute top-12 left-0 bg-white rounded-lg shadow-xl border border-gray-200 p-4 w-72">
+        <div className="absolute top-10 left-0 sm:top-12 bg-white rounded-lg shadow-xl border border-gray-200 p-3 sm:p-4 w-64 sm:w-72 max-w-[calc(100vw-1rem)] max-h-[calc(100vh-4rem)] overflow-y-auto">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-semibold text-gray-900">
               💡 How to Use

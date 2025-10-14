@@ -28,15 +28,21 @@ export async function updateShapePositionRealtime(shapeId, position) {
   try {
     const positionRef = ref(rtdb, `${REALTIME_SHAPES_PATH}/${GLOBAL_CANVAS_ID}/${shapeId}/position`);
     
-    // Fire-and-forget update for maximum performance
-    set(positionRef, {
-      x: position.x,
-      y: position.y,
+    // Simplified data structure for better performance
+    const positionData = {
+      x: Math.round(position.x * 100) / 100, // Round to 2 decimal places
+      y: Math.round(position.y * 100) / 100,
       updatedBy: currentUser.uid,
-      timestamp: serverTimestamp()
-    });
+      timestamp: Date.now() // Use local timestamp for speed
+    };
     
-    console.log('⚡ Position updated (realtime):', shapeId, position);
+    // Fire-and-forget update for maximum performance
+    set(positionRef, positionData);
+    
+    // Only log in development for performance
+    if (process.env.NODE_ENV === 'development') {
+      console.log('⚡ Position updated (realtime):', shapeId, positionData);
+    }
   } catch (error) {
     console.error('❌ Error updating realtime position:', error);
   }
@@ -54,6 +60,14 @@ export function throttledUpdateShapePosition(shapeId, position) {
 }
 
 /**
+ * Force immediate position update (used for drag end)
+ */
+export function forceUpdateShapePosition(shapeId, position) {
+  updateShapePositionRealtime(shapeId, position);
+  lastPositionUpdate = Date.now();
+}
+
+/**
  * Subscribe to real-time position updates for all shapes
  */
 export function subscribeToRealtimePositions(callback) {
@@ -65,6 +79,15 @@ export function subscribeToRealtimePositions(callback) {
   const positionsRef = ref(rtdb, `${REALTIME_SHAPES_PATH}/${GLOBAL_CANVAS_ID}`);
   
   console.log('⚡ Subscribing to realtime positions');
+  
+  // Debounce rapid updates to prevent excessive re-renders
+  let updateTimeout = null;
+  const debouncedCallback = (updates) => {
+    if (updateTimeout) clearTimeout(updateTimeout);
+    updateTimeout = setTimeout(() => {
+      callback(updates);
+    }, 5); // 5ms debounce for smoother updates
+  };
   
   const unsubscribe = onValue(positionsRef, (snapshot) => {
     const positionsData = snapshot.val();
@@ -86,15 +109,21 @@ export function subscribeToRealtimePositions(callback) {
       });
       
       if (Object.keys(positionUpdates).length > 0) {
-        console.log('⚡ Received realtime position updates:', Object.keys(positionUpdates));
-        callback(positionUpdates);
+        // Only log in development for performance
+        if (process.env.NODE_ENV === 'development') {
+          console.log('⚡ Received realtime position updates:', Object.keys(positionUpdates));
+        }
+        debouncedCallback(positionUpdates);
       }
     }
   }, (error) => {
     console.error('❌ Realtime positions subscription error:', error);
   });
 
-  return unsubscribe;
+  return () => {
+    if (updateTimeout) clearTimeout(updateTimeout);
+    unsubscribe();
+  };
 }
 
 /**

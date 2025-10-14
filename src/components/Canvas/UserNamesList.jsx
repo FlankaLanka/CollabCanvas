@@ -20,15 +20,15 @@ function UserNamesList() {
   });
 
   return (
-    <div className="absolute bottom-4 left-48 bg-white bg-opacity-90 rounded-lg px-3 py-2 border border-gray-300 shadow-sm">
+    <div className="absolute bottom-2 left-2 sm:bottom-4 sm:left-4 xl:left-24 bg-white bg-opacity-90 rounded-lg px-2 sm:px-3 py-2 border border-gray-300 shadow-sm max-w-[calc(100vw-20rem)] sm:max-w-[calc(100vw-22rem)] xl:max-w-md">
       <div className="text-xs font-medium text-gray-700 mb-1">
         Online Users ({onlineUsers.length})
       </div>
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-1 sm:gap-2">
         {userNames.map((name, index) => (
           <div 
             key={index}
-            className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full"
+            className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full truncate"
           >
             {name}
           </div>

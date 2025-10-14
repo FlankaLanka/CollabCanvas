@@ -21,7 +21,9 @@ export const PAN_BOUNDS = {
 export const SHAPE_TYPES = {
   RECTANGLE: 'rectangle',
   CIRCLE: 'circle',
-  TRIANGLE: 'triangle'
+  TRIANGLE: 'triangle',
+  TEXT: 'text',
+  TEXT_INPUT: 'text_input'
 };
 
 // Shape defaults for each type
@@ -39,6 +41,34 @@ export const DEFAULT_SHAPE_PROPS = {
     points: [0, -40, -35, 30, 35, 30], // Equilateral triangle
     fill: '#EF4444',
     closed: true
+  },
+  [SHAPE_TYPES.TEXT]: {
+    text: 'Text',
+    fontSize: 20,
+    fontFamily: 'Arial, sans-serif',
+    fill: '#1F2937',
+    width: 200,
+    height: 'auto',
+    align: 'left',
+    verticalAlign: 'top',
+    padding: 8,
+    editable: true
+  },
+  [SHAPE_TYPES.TEXT_INPUT]: {
+    text: 'Input Field',
+    fontSize: 16,
+    fontFamily: 'Arial, sans-serif',
+    fill: '#1F2937',
+    width: 250,
+    height: 40,
+    align: 'left',
+    verticalAlign: 'middle',
+    padding: 12,
+    editable: true,
+    background: '#FFFFFF',
+    borderColor: '#D1D5DB',
+    borderWidth: 1,
+    cornerRadius: 6
   }
 };
 
@@ -88,6 +118,20 @@ export const SHAPE_SIZE_LIMITS = {
   [SHAPE_TYPES.TRIANGLE]: {
     minSize: 20,
     maxSize: 200
+  },
+  [SHAPE_TYPES.TEXT]: {
+    minFontSize: 8,
+    maxFontSize: 72,
+    minWidth: 50,
+    maxWidth: 800
+  },
+  [SHAPE_TYPES.TEXT_INPUT]: {
+    minFontSize: 8,
+    maxFontSize: 32,
+    minWidth: 100,
+    maxWidth: 600,
+    minHeight: 20,
+    maxHeight: 200
   }
 };
 
@@ -97,3 +141,38 @@ export const GRID_COLOR = '#E5E7EB';
 
 // Performance settings
 export const DEBOUNCE_TIME = 16; // ~60fps for smooth interactions
+
+// Font options for text elements
+export const FONT_FAMILIES = [
+  'Arial, sans-serif',
+  'Helvetica, sans-serif',
+  'Times New Roman, serif',
+  'Georgia, serif',
+  'Courier New, monospace',
+  'Verdana, sans-serif',
+  'Impact, sans-serif'
+];
+
+// Text alignment options
+export const TEXT_ALIGN_OPTIONS = ['left', 'center', 'right'];
+export const VERTICAL_ALIGN_OPTIONS = ['top', 'middle', 'bottom'];
+
+// Utility function for throttling
+export function throttle(func, delay) {
+  let timeoutId;
+  let lastExecTime = 0;
+  return function (...args) {
+    const currentTime = Date.now();
+    
+    if (currentTime - lastExecTime > delay) {
+      func.apply(this, args);
+      lastExecTime = currentTime;
+    } else {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        func.apply(this, args);
+        lastExecTime = Date.now();
+      }, delay - (currentTime - lastExecTime));
+    }
+  };
+}

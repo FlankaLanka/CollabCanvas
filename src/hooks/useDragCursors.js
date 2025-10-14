@@ -16,7 +16,7 @@ export function useDragCursors() {
         .filter(state => state.isDragging && state.cursorX !== undefined && state.cursorY !== undefined)
         .map(state => ({
           userId: state.draggedBy,
-          displayName: `User (dragging ${state.shapeId.split('-')[1]})`,
+          displayName: null, // No label for drag cursors - regular cursors show user names
           x: state.cursorX,
           y: state.cursorY,
           isDragging: true,

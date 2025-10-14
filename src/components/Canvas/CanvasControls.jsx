@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { useCanvas } from '../../contexts/CanvasContext';
+import { useCanvas } from '../../contexts/ModernCanvasContext';
 import { MIN_ZOOM, MAX_ZOOM, DEFAULT_ZOOM } from '../../utils/constants';
 
 function CanvasControls() {

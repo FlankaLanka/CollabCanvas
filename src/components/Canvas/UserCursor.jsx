@@ -47,15 +47,17 @@ function UserCursor({ cursor, isVisible = true }) {
         </svg>
         
         {/* User name label */}
-        <div
-          className="absolute top-5 left-2 px-2 py-1 rounded text-xs font-medium whitespace-nowrap shadow-lg"
-          style={{
-            backgroundColor: cursor.color || '#3B82F6',
-            color: 'white'
-          }}
-        >
-          {cursor.displayName || 'Anonymous'}
-        </div>
+        {cursor.displayName && (
+          <div
+            className="absolute top-5 left-2 px-2 py-1 rounded text-xs font-medium whitespace-nowrap shadow-lg"
+            style={{
+              backgroundColor: cursor.color || '#3B82F6',
+              color: 'white'
+            }}
+          >
+            {cursor.displayName}
+          </div>
+        )}
       </div>
     </div>
   );
