@@ -49,10 +49,10 @@ src/
 │ Collab Canvas                   [User Info] [Sign out] │
 ├─────────────────────────────────────────────────┤
 │ [⬜] │                                    │ Online Users   │
-│ [⭕] │         Canvas Area               │ • Frank (You)  │
-│ [T]  │     (Ready for Konva.js)          │ • Yu Jen       │
-│      │                                    │ • Alex         │
-│      │                                    │                │
+│ [⭕] │         Canvas Area               │ • Alice (You)  │
+│ [T]  │     (Ready for Konva.js)          │ • Bob          │
+│      │                                    │ • Charlie      │
+│      │                                    │ • Diana        │
 └─────────────────────────────────────────────────┘
 ```
 

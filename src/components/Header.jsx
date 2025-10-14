@@ -8,7 +8,7 @@ function Header() {
 
       {/* Right: User info */}
       <div className="flex items-center space-x-4">
-        <span className="text-sm text-gray-600">Signed in as Frank</span>
+        <span className="text-sm text-gray-600">Signed in as Alice</span>
         <button className="px-3 py-1 text-sm text-gray-700 border border-gray-300 rounded hover:bg-gray-50 transition-colors">
           Sign out
         </button>
