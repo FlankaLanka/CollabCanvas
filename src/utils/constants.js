@@ -24,7 +24,8 @@ export const SHAPE_TYPES = {
   TRIANGLE: 'triangle',
   LINE: 'line',
   TEXT: 'text',
-  TEXT_INPUT: 'text_input'
+  TEXT_INPUT: 'text_input',
+  BEZIER_CURVE: 'bezier_curve'
 };
 
 // Shape defaults for each type
@@ -83,6 +84,25 @@ export const DEFAULT_SHAPE_PROPS = {
     borderColor: '#D1D5DB',
     borderWidth: 1,
     cornerRadius: 6,
+    zIndex: 0
+  },
+  [SHAPE_TYPES.BEZIER_CURVE]: {
+    // Bezier curve defined by 4 control points: start, control1, control2, end
+    // Default creates a nice S-curve
+    controlPoints: [
+      { x: 0, y: 0 },       // Start point
+      { x: 50, y: -50 },    // First control point
+      { x: 100, y: 50 },    // Second control point
+      { x: 150, y: 0 }      // End point
+    ],
+    stroke: '#8B5CF6',      // Purple stroke
+    strokeWidth: 3,
+    fill: null,             // Curves don't have fill
+    lineCap: 'round',       // Rounded line endings
+    lineJoin: 'round',      // Rounded line joins
+    tension: 0.5,           // Curve tension (0 = straight lines, 1 = very curved)
+    editable: true,         // Allow editing control points
+    showControlPoints: false, // Show control points when selected
     zIndex: 0
   }
 };
@@ -155,6 +175,14 @@ export const SHAPE_SIZE_LIMITS = {
     maxWidth: 600,
     minHeight: 20,
     maxHeight: 200
+  },
+  [SHAPE_TYPES.BEZIER_CURVE]: {
+    minStrokeWidth: 1,
+    maxStrokeWidth: 20,
+    minControlPointDistance: 10,   // Minimum distance between control points
+    maxControlPointDistance: 800,  // Maximum distance between control points
+    minTension: 0,                 // Minimum curve tension
+    maxTension: 1                  // Maximum curve tension
   }
 };
 

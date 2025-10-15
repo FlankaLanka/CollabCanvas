@@ -91,6 +91,33 @@ function Toolbar() {
     });
   }, [addShape, getViewportCenter]);
 
+  // Create a bezier curve
+  const handleAddBezierCurve = useCallback(() => {
+    const center = getViewportCenter();
+    const defaults = DEFAULT_SHAPE_PROPS[SHAPE_TYPES.BEZIER_CURVE];
+    
+    // Position the control points relative to the center
+    const controlPoints = defaults.controlPoints.map(point => ({
+      x: center.x + point.x - 75, // Offset to center the curve
+      y: center.y + point.y
+    }));
+    
+    addShape({
+      type: SHAPE_TYPES.BEZIER_CURVE,
+      x: center.x - 75, // Position for curve center
+      y: center.y,
+      controlPoints: controlPoints,
+      stroke: defaults.stroke,
+      strokeWidth: defaults.strokeWidth,
+      fill: defaults.fill,
+      lineCap: defaults.lineCap,
+      lineJoin: defaults.lineJoin,
+      tension: defaults.tension,
+      editable: defaults.editable,
+      showControlPoints: false // Start with control points hidden
+    });
+  }, [addShape, getViewportCenter]);
+
   // Toggle drawing mode for freeform line drawing
   const handleToggleDrawing = useCallback(() => {
     toggleDrawingMode();
@@ -203,6 +230,15 @@ function Toolbar() {
       icon: (
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
           <line x1="3" y1="12" x2="21" y2="12"/>
+        </svg>
+      )
+    },
+    {
+      name: 'Bezier Curve',
+      action: handleAddBezierCurve,
+      icon: (
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M3 12C3 12 6 2 12 12C18 22 21 12 21 12"/>
         </svg>
       )
     },

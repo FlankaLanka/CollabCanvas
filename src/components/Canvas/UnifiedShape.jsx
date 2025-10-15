@@ -1,7 +1,39 @@
 import { useCallback, useRef, useEffect } from 'react';
-import { Rect, Circle, Ellipse, Line, Text, Group } from 'react-konva';
+import { Rect, Circle, Ellipse, Line, Text, Group, Shape } from 'react-konva';
 import { useCanvas } from '../../contexts/ModernCanvasContext';
 import { SHAPE_TYPES } from '../../utils/constants';
+
+/**
+ * Generate points for a cubic bezier curve
+ * @param {Array} controlPoints - Array of 4 control points [{x, y}, {x, y}, {x, y}, {x, y}]
+ * @param {number} segments - Number of segments to divide the curve into
+ * @returns {Array} Array of points [x1, y1, x2, y2, ...]
+ */
+function generateBezierPoints(controlPoints, segments = 50) {
+  if (!controlPoints || controlPoints.length !== 4) {
+    return [0, 0, 100, 0]; // Fallback to simple line
+  }
+
+  const [p0, p1, p2, p3] = controlPoints;
+  const points = [];
+
+  for (let i = 0; i <= segments; i++) {
+    const t = i / segments;
+    const mt = 1 - t;
+    const mt2 = mt * mt;
+    const mt3 = mt2 * mt;
+    const t2 = t * t;
+    const t3 = t2 * t;
+
+    // Cubic bezier formula: P(t) = (1-t)³P₀ + 3(1-t)²tP₁ + 3(1-t)t²P₂ + t³P₃
+    const x = mt3 * p0.x + 3 * mt2 * t * p1.x + 3 * mt * t2 * p2.x + t3 * p3.x;
+    const y = mt3 * p0.y + 3 * mt2 * t * p1.y + 3 * mt * t2 * p2.y + t3 * p3.y;
+
+    points.push(x, y);
+  }
+
+  return points;
+}
 
 /**
  * Unified Shape Component - Works with all interaction models
@@ -20,11 +52,13 @@ function UnifiedShape({ shape, isSelected, updateCursor }) {
     toggleShapeSelection,
     addToSelection,
     deleteShape,
+    updateShape,
     startDrag,
     updateDragPositions,
     endDrag,
     isDragging,
     isTransforming,
+    setTransformMode,
     stageRef
   } = useCanvas();
 
@@ -437,6 +471,94 @@ function UnifiedShape({ shape, isSelected, updateCursor }) {
         </Group>
       );
     
+    case SHAPE_TYPES.BEZIER_CURVE:
+      const bezierPoints = generateBezierPoints(shape.controlPoints);
+      const controlPoints = shape.controlPoints || [
+        { x: 0, y: 0 },
+        { x: 50, y: -50 },
+        { x: 100, y: 50 },
+        { x: 150, y: 0 }
+      ];
+      
+      return (
+        <Group {...commonProps}>
+          {/* Main bezier curve */}
+          <Line
+            points={bezierPoints}
+            stroke={shape.stroke || '#8B5CF6'}
+            strokeWidth={shape.strokeWidth || 3}
+            fill={null}
+            closed={false}
+            lineCap={shape.lineCap || 'round'}
+            lineJoin={shape.lineJoin || 'round'}
+            tension={0} // We handle our own curve generation
+            onDblClick={(e) => {
+              e.cancelBubble = true;
+              // Toggle control point visibility on double-click
+              updateShape(shape.id, { 
+                showControlPoints: !shape.showControlPoints 
+              });
+            }}
+          />
+          
+          {/* Control points (visible when selected and editing) */}
+          {isSelected && shape.showControlPoints && controlPoints.map((point, index) => (
+            <Group key={`control-${index}`}>
+              {/* Control lines (showing curve structure) */}
+              {index === 1 && (
+                <Line
+                  points={[controlPoints[0].x, controlPoints[0].y, point.x, point.y]}
+                  stroke="#94A3B8"
+                  strokeWidth={1}
+                  dash={[5, 5]}
+                />
+              )}
+              {index === 2 && (
+                <Line
+                  points={[controlPoints[3].x, controlPoints[3].y, point.x, point.y]}
+                  stroke="#94A3B8"
+                  strokeWidth={1}
+                  dash={[5, 5]}
+                />
+              )}
+              
+              {/* Control point handle */}
+              <Circle
+                x={point.x}
+                y={point.y}
+                radius={6}
+                fill={index === 0 || index === 3 ? '#3B82F6' : '#EF4444'}
+                stroke="#FFFFFF"
+                strokeWidth={2}
+                draggable={true}
+                onDragStart={() => {
+                  // Prevent shape dragging when dragging control points
+                  setTransformMode(true);
+                }}
+                onDragMove={(e) => {
+                  // Update control point position in real-time
+                  const newControlPoints = [...controlPoints];
+                  newControlPoints[index] = { x: e.target.x(), y: e.target.y() };
+                  
+                  // Update the shape with new control points
+                  updateShape(shape.id, { controlPoints: newControlPoints });
+                }}
+                onDragEnd={() => {
+                  // Re-enable shape dragging
+                  setTransformMode(false);
+                }}
+                onMouseEnter={(e) => {
+                  e.target.getStage().container().style.cursor = 'pointer';
+                }}
+                onMouseLeave={(e) => {
+                  e.target.getStage().container().style.cursor = 'default';
+                }}
+              />
+            </Group>
+          ))}
+        </Group>
+      );
+
     default:
       console.warn('Unknown shape type:', shape.type, 'falling back to rectangle');
       return (

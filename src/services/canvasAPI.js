@@ -108,7 +108,9 @@ export class CanvasAPI {
       'input': SHAPE_TYPES.TEXT_INPUT,
       'field': SHAPE_TYPES.TEXT_INPUT,
       'line': SHAPE_TYPES.LINE,
-      'drawing': SHAPE_TYPES.LINE
+      'drawing': SHAPE_TYPES.LINE,
+      'bezier': SHAPE_TYPES.BEZIER_CURVE,
+      'curve': SHAPE_TYPES.BEZIER_CURVE
     };
     
     // Find matches
@@ -319,6 +321,8 @@ export class CanvasAPI {
         return `${colorPrefix}drawn line`;
       case SHAPE_TYPES.TRIANGLE:
         return `${colorPrefix}triangle`;
+      case SHAPE_TYPES.BEZIER_CURVE:
+        return `${colorPrefix}bezier curve`;
       default:
         return `${colorPrefix}${shape.type} shape`;
     }

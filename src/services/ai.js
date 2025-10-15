@@ -32,7 +32,7 @@ const AI_FUNCTIONS = [
       properties: {
         shapeType: {
           type: 'string',
-          enum: ['rectangle', 'circle', 'triangle', 'line', 'text', 'text_input'],
+          enum: ['rectangle', 'circle', 'triangle', 'line', 'text', 'text_input', 'bezier_curve'],
           description: 'Type of shape to create'
         },
         x: {
@@ -182,7 +182,7 @@ const AI_FUNCTIONS = [
       properties: {
         shapeType: {
           type: 'string',
-          enum: ['rectangle', 'circle', 'triangle'],
+          enum: ['rectangle', 'circle', 'triangle', 'bezier_curve'],
           description: 'Type of shapes to create'
         },
         count: {
@@ -424,7 +424,7 @@ SHAPE IDENTIFICATION SYSTEM:
 - Identify shapes by natural language descriptions like "blue rectangle", "red circle", "large triangle"
 - Use color, type, size, and text content to identify shapes
 - Supported colors: blue, red, green, yellow, purple, pink, orange, gray, black, white
-- Supported types: rectangle, circle, triangle, text, input field, line
+- Supported types: rectangle, circle, triangle, text, input field, line, bezier curve
 - Size descriptors: large/big, small/tiny
 - Examples: "delete the blue rectangle", "move the red circle to 200, 300", "resize the large triangle"
 
