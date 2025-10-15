@@ -3,7 +3,16 @@ import { useCanvas } from '../contexts/ModernCanvasContext';
 import { SHAPE_TYPES, DEFAULT_SHAPE_PROPS } from '../utils/constants';
 
 function Toolbar() {
-  const { addShape, deleteAllShapes, shapes, stageRef, stageScale, stagePosition } = useCanvas();
+  const { 
+    addShape, 
+    deleteAllShapes, 
+    shapes, 
+    stageRef, 
+    stageScale, 
+    stagePosition,
+    isDrawingMode,
+    toggleDrawingMode
+  } = useCanvas();
 
   // Get viewport center position
   const getViewportCenter = useCallback(() => {
@@ -59,9 +68,10 @@ function Toolbar() {
     
     addShape({
       type: SHAPE_TYPES.CIRCLE,
-      x: center.x - defaults.radius, // Center the shape (x,y is top-left for circles in Konva)
-      y: center.y - defaults.radius,
-      radius: defaults.radius,
+      x: center.x - defaults.radiusX, // Center the shape (x,y is center for ellipses in Konva)
+      y: center.y - defaults.radiusY,
+      radiusX: defaults.radiusX,
+      radiusY: defaults.radiusY,
       fill: defaults.fill
     });
   }, [addShape, getViewportCenter]);
@@ -80,6 +90,11 @@ function Toolbar() {
       closed: defaults.closed
     });
   }, [addShape, getViewportCenter]);
+
+  // Toggle drawing mode for freeform line drawing
+  const handleToggleDrawing = useCallback(() => {
+    toggleDrawingMode();
+  }, [toggleDrawingMode]);
 
   // Create a text element
   const handleAddText = useCallback(() => {
@@ -182,6 +197,16 @@ function Toolbar() {
       )
     },
     {
+      name: isDrawingMode ? 'Exit Drawing Mode' : 'Draw Lines',
+      action: handleToggleDrawing,
+      active: isDrawingMode,
+      icon: (
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+          <line x1="3" y1="12" x2="21" y2="12"/>
+        </svg>
+      )
+    },
+    {
       name: 'Text',
       action: handleAddText,
       icon: (
@@ -230,7 +255,11 @@ function Toolbar() {
         <button
           key={tool.name}
           onClick={tool.action}
-          className="w-10 h-10 sm:w-11 sm:h-11 lg:w-12 lg:h-12 bg-white border border-gray-300 rounded-lg flex items-center justify-center text-gray-700 hover:bg-gray-100 hover:border-gray-400 transition-colors shadow-sm hover:shadow-md"
+          className={`w-10 h-10 sm:w-11 sm:h-11 lg:w-12 lg:h-12 border rounded-lg flex items-center justify-center transition-colors shadow-sm hover:shadow-md ${
+            tool.active 
+              ? 'bg-blue-100 border-blue-300 text-blue-700 hover:bg-blue-200 hover:border-blue-400' 
+              : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-100 hover:border-gray-400'
+          }`}
           title={tool.name}
         >
           <div className="w-4 h-4 sm:w-5 sm:h-5">

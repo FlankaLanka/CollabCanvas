@@ -355,7 +355,7 @@ export function calculateGroupBounds(shapes) {
  */
 function getElementWidth(element) {
   if (element.width) return element.width;
-  if (element.radius) return element.radius * 2;
+  if (element.radiusX) return element.radiusX * 2;
   if (element.type === SHAPE_TYPES.TRIANGLE) return 70; // Default triangle width
   return 100; // Default width
 }
@@ -365,7 +365,7 @@ function getElementWidth(element) {
  */
 function getElementHeight(element) {
   if (element.height) return element.height;
-  if (element.radius) return element.radius * 2;
+  if (element.radiusY) return element.radiusY * 2;
   if (element.type === SHAPE_TYPES.TRIANGLE) return 80; // Default triangle height
   if (element.type === SHAPE_TYPES.TEXT) return element.fontSize ? element.fontSize + 16 : 36;
   return 100; // Default height

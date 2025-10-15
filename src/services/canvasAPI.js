@@ -36,7 +36,8 @@ export class CanvasAPI {
         y: Math.round(shape.y),
         width: shape.width,
         height: shape.height,
-        radius: shape.radius,
+        radiusX: shape.radiusX,
+        radiusY: shape.radiusY,
         fill: shape.fill,
         text: shape.text,
         rotation: shape.rotation || 0
@@ -49,7 +50,7 @@ export class CanvasAPI {
   }
 
   // Create a new shape
-  async createShape({ shapeType, x, y, width, height, radius, scale = 1, fill }) {
+  async createShape({ shapeType, x, y, width, height, radius, radiusX, radiusY, scale = 1, fill }) {
     const defaults = DEFAULT_SHAPE_PROPS[shapeType];
     if (!defaults) {
       throw new Error(`Unsupported shape type: ${shapeType}`);
@@ -58,8 +59,12 @@ export class CanvasAPI {
     const color = fill ? parseColor(fill) : defaults.fill;
     
     // Snap position to grid and ensure it's within bounds
-    const elementWidth = width || (shapeType === SHAPE_TYPES.CIRCLE ? (radius || defaults.radius) * 2 : defaults.width);
-    const elementHeight = height || (shapeType === SHAPE_TYPES.CIRCLE ? (radius || defaults.radius) * 2 : defaults.height);
+    const elementWidth = width || (shapeType === SHAPE_TYPES.CIRCLE ? (radiusX || radius || defaults.radiusX) * 2 : 
+                                   shapeType === SHAPE_TYPES.LINE ? 100 : // Lines get a 100px default width for layout
+                                   defaults.width);
+    const elementHeight = height || (shapeType === SHAPE_TYPES.CIRCLE ? (radiusY || radius || defaults.radiusY) * 2 : 
+                                     shapeType === SHAPE_TYPES.LINE ? 20 : // Lines get a 20px default height for layout
+                                     defaults.height);
     
     const canvasContext = { stageRef: this.canvas.stageRef, stageScale: this.canvas.stageScale, stagePosition: this.canvas.stagePosition };
     const bounds = getCanvasBounds(canvasContext);
@@ -82,13 +87,22 @@ export class CanvasAPI {
         break;
       
       case SHAPE_TYPES.CIRCLE:
-        shapeData.radius = radius || defaults.radius;
+        shapeData.radiusX = radiusX || radius || defaults.radiusX;
+        shapeData.radiusY = radiusY || radius || defaults.radiusY;
         break;
       
       case SHAPE_TYPES.TRIANGLE:
         const triangleScale = scale || 1;
         shapeData.points = defaults.points.map(point => point * triangleScale);
         shapeData.closed = true;
+        break;
+      
+      case SHAPE_TYPES.LINE:
+        const lineScale = scale || 1;
+        shapeData.points = defaults.points.map(point => point * lineScale);
+        shapeData.stroke = defaults.stroke;
+        shapeData.strokeWidth = defaults.strokeWidth;
+        shapeData.closed = false;
         break;
     }
 
@@ -102,7 +116,7 @@ export class CanvasAPI {
   }
 
   // Create multiple shapes at once
-  async createMultipleShapes({ shapeType, count, startX, startY, spacing = LAYOUT_CONSTANTS.DEFAULT_HORIZONTAL_SPACING, arrangement = 'row', width, height, radius, scale = 1, fill }) {
+  async createMultipleShapes({ shapeType, count, startX, startY, spacing = LAYOUT_CONSTANTS.DEFAULT_HORIZONTAL_SPACING, arrangement = 'row', width, height, radius, radiusX, radiusY, scale = 1, fill }) {
     const defaults = DEFAULT_SHAPE_PROPS[shapeType];
     if (!defaults) {
       throw new Error(`Unsupported shape type: ${shapeType}`);
@@ -113,8 +127,12 @@ export class CanvasAPI {
     
     // Use improved layout helpers for positioning
     const canvasContext = { stageRef: this.canvas.stageRef, stageScale: this.canvas.stageScale, stagePosition: this.canvas.stagePosition };
-    const elementWidth = width || (shapeType === SHAPE_TYPES.CIRCLE ? (radius || defaults.radius) * 2 : defaults.width);
-    const elementHeight = height || (shapeType === SHAPE_TYPES.CIRCLE ? (radius || defaults.radius) * 2 : defaults.height);
+    const elementWidth = width || (shapeType === SHAPE_TYPES.CIRCLE ? (radiusX || radius || defaults.radiusX) * 2 : 
+                                   shapeType === SHAPE_TYPES.LINE ? 100 : // Lines get a 100px default width for layout
+                                   defaults.width);
+    const elementHeight = height || (shapeType === SHAPE_TYPES.CIRCLE ? (radiusY || radius || defaults.radiusY) * 2 : 
+                                     shapeType === SHAPE_TYPES.LINE ? 20 : // Lines get a 20px default height for layout
+                                     defaults.height);
     
     // Create dummy elements for layout calculation
     const elements = Array(count).fill({ width: elementWidth, height: elementHeight });
@@ -162,13 +180,22 @@ export class CanvasAPI {
           break;
         
         case SHAPE_TYPES.CIRCLE:
-          shapeData.radius = radius || defaults.radius;
+          shapeData.radiusX = radiusX || radius || defaults.radiusX;
+          shapeData.radiusY = radiusY || radius || defaults.radiusY;
           break;
         
         case SHAPE_TYPES.TRIANGLE:
           const triangleScale = scale || 1;
           shapeData.points = defaults.points.map(point => point * triangleScale);
           shapeData.closed = true;
+          break;
+        
+        case SHAPE_TYPES.LINE:
+          const lineScale = scale || 1;
+          shapeData.points = defaults.points.map(point => point * lineScale);
+          shapeData.stroke = defaults.stroke;
+          shapeData.strokeWidth = defaults.strokeWidth;
+          shapeData.closed = false;
           break;
       }
 
@@ -264,7 +291,7 @@ export class CanvasAPI {
   }
 
   // Resize a shape
-  async resizeShape(shapeId, { width, height, radius, scale }) {
+  async resizeShape(shapeId, { width, height, radius, radiusX, radiusY, scale }) {
     const shape = this.canvas.getShape(shapeId);
     if (!shape) {
       throw new Error(`Shape with ID ${shapeId} not found`);
@@ -279,7 +306,12 @@ export class CanvasAPI {
         break;
       
       case SHAPE_TYPES.CIRCLE:
-        if (radius !== undefined) updates.radius = radius;
+        if (radiusX !== undefined) updates.radiusX = radiusX;
+        if (radiusY !== undefined) updates.radiusY = radiusY;
+        if (radius !== undefined) { // Legacy support for single radius
+          updates.radiusX = radius;
+          updates.radiusY = radius;
+        }
         break;
       
       case SHAPE_TYPES.TRIANGLE:
@@ -371,7 +403,7 @@ export class CanvasAPI {
         if (shape.type === SHAPE_TYPES.RECTANGLE) {
           shapeWidth = shape.width || 100;
         } else if (shape.type === SHAPE_TYPES.CIRCLE) {
-          shapeWidth = (shape.radius || 50) * 2;
+          shapeWidth = (shape.radiusX || 50) * 2;
         } else if (shape.type === SHAPE_TYPES.TEXT || shape.type === SHAPE_TYPES.TEXT_INPUT) {
           shapeWidth = shape.width || 200;
         }

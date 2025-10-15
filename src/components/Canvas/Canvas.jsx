@@ -1,9 +1,11 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { Stage, Layer, Rect } from 'react-konva';
+import { Stage, Layer, Rect, Line } from 'react-konva';
 import { useCanvas } from '../../contexts/ModernCanvasContext';
 import UnifiedShape from './UnifiedShape';
+import ShapeTransformer from './ShapeTransformer';
+import LayerPanel from './LayerPanel';
+import CanvasControls from './CanvasControls';
 import CursorLayer from './CursorLayer';
-import UserNamesList from './UserNamesList';
 import PropertiesPanel from './PropertiesPanel';
 import InteractionGuide from './InteractionGuide';
 import AIChat from '../AI/AIChat';
@@ -24,11 +26,22 @@ function Canvas() {
     stageRef,
     stageScale,
     stagePosition,
-    syncStatus,
-    syncLoading,
     updateStageTransform,
     clearSelection,
-    addShape
+    selectAllShapes,
+    addShape,
+    isDrawingMode,
+    currentDrawingPath,
+    isDrawing,
+    startDrawing,
+    addDrawingPoint,
+    finishDrawing,
+    cancelDrawing,
+    toggleDrawingMode,
+    bringToFront,
+    sendToBack,
+    moveForward,
+    moveBackward
   } = useCanvas();
 
   // Presence tracking (users & cursors)
@@ -67,6 +80,56 @@ function Canvas() {
     window.addEventListener('resize', updateSize);
     return () => window.removeEventListener('resize', updateSize);
   }, []);
+
+  // Handle keyboard shortcuts for drawing mode and selection
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // ESC key to exit drawing mode or cancel current drawing
+      if (e.key === 'Escape') {
+        if (isDrawing) {
+          cancelDrawing();
+        } else if (isDrawingMode) {
+          toggleDrawingMode();
+        }
+      }
+      
+      // Ctrl+A to select all shapes
+      if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
+        e.preventDefault(); // Prevent browser's select all
+        selectAllShapes();
+      }
+      
+      // Layer management shortcuts (only when shapes are selected)
+      if (selectedIds.length > 0) {
+        // Ctrl+Shift+] to bring to front
+        if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === ']') {
+          e.preventDefault();
+          bringToFront();
+        }
+        
+        // Ctrl+Shift+[ to send to back
+        if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === '[') {
+          e.preventDefault();
+          sendToBack();
+        }
+        
+        // Ctrl+] to move forward
+        if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === ']') {
+          e.preventDefault();
+          moveForward();
+        }
+        
+        // Ctrl+[ to move backward
+        if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === '[') {
+          e.preventDefault();
+          moveBackward();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isDrawingMode, isDrawing, cancelDrawing, toggleDrawingMode, selectAllShapes, selectedIds, bringToFront, sendToBack, moveForward, moveBackward]);
 
   // Handle global mouse up for middle button panning (in case mouse is released outside canvas)
   useEffect(() => {
@@ -127,7 +190,7 @@ function Canvas() {
     // Additional check: if target has no shape-related class names
     const targetClasses = e.target.getClassName ? e.target.getClassName() : '';
     const isShapeElement = targetClasses.includes('Shape') || targetClasses.includes('Rect') || 
-                           targetClasses.includes('Circle') || targetClasses.includes('Line') ||
+                           targetClasses.includes('Circle') || targetClasses.includes('Ellipse') || targetClasses.includes('Line') ||
                            targetClasses.includes('Text') || targetClasses.includes('Group');
     
     const shouldClearSelection = (clickedOnEmpty || !isShapeElement);
@@ -174,10 +237,33 @@ function Canvas() {
     stage.batchDraw();
   }, [containerSize, stageRef, updateStageTransform]);
 
-  // Handle mouse move (for cursor tracking, panning, and drag-to-select)
+  // Handle mouse move (for cursor tracking, panning, and drawing)
   const handleMouseMove = useCallback((e) => {
     if (isPresenceActive && stageRef.current) {
       updateCursorFromEvent(e.evt, stageRef.current);
+    }
+
+    // Handle drawing mode
+    if (isDrawing && stageRef.current) {
+      const stage = stageRef.current;
+      
+      // Get mouse coordinates relative to stage container
+      const rect = stage.container().getBoundingClientRect();
+      const x = e.evt.clientX - rect.left;
+      const y = e.evt.clientY - rect.top;
+      
+      // Transform to canvas coordinates using direct calculation (more reliable than getPointerPosition)
+      const stagePos = stage.position();
+      const stageScale = stage.scaleX();
+      const canvasPos = {
+        x: (x - stagePos.x) / stageScale,
+        y: (y - stagePos.y) / stageScale
+      };
+      
+      // Validate coordinates before adding
+      if (isFinite(canvasPos.x) && isFinite(canvasPos.y) && !isNaN(canvasPos.x) && !isNaN(canvasPos.y)) {
+        addDrawingPoint(canvasPos);
+      }
     }
 
     // Handle middle mouse button panning
@@ -207,9 +293,9 @@ function Canvas() {
     }
 
     // Removed drag-to-select rectangle handling (multi-select disabled)
-  }, [updateCursorFromEvent, isPresenceActive, isMiddlePanning, lastPanPoint, stageScale, updateStageTransform]);
+  }, [updateCursorFromEvent, isPresenceActive, isDrawing, addDrawingPoint, isMiddlePanning, lastPanPoint, stageScale, updateStageTransform]);
 
-  // Handle mouse down for panning and drag-to-select
+  // Handle mouse down for panning, drawing, and drag-to-select
   const handleMouseDown = useCallback((e) => {
     // Check for middle mouse button (button 1) - panning
     if (e.evt.button === 1) {
@@ -219,24 +305,59 @@ function Canvas() {
       return;
     }
 
-    // Removed drag-to-select functionality (single-select only)
-  }, [stageRef]);
+    // Handle drawing mode (left mouse button)
+    if (e.evt.button === 0 && isDrawingMode && stageRef.current) {
+      e.evt.preventDefault();
+      const stage = stageRef.current;
+      
+      // Get mouse coordinates relative to stage container
+      const rect = stage.container().getBoundingClientRect();
+      const x = e.evt.clientX - rect.left;
+      const y = e.evt.clientY - rect.top;
+      
+      // Transform to canvas coordinates using direct calculation (more reliable than getPointerPosition)
+      const stagePos = stage.position();
+      const stageScale = stage.scaleX();
+      const canvasPos = {
+        x: (x - stagePos.x) / stageScale,
+        y: (y - stagePos.y) / stageScale
+      };
+      
+      // Validate coordinates before starting drawing
+      if (isFinite(canvasPos.x) && isFinite(canvasPos.y) && !isNaN(canvasPos.x) && !isNaN(canvasPos.y)) {
+        startDrawing(canvasPos);
+      }
+      return;
+    }
 
-  // Handle mouse up for panning only (drag-to-select removed)
+    // Removed drag-to-select functionality (single-select only)
+  }, [stageRef, isDrawingMode, startDrawing, stageScale]);
+
+  // Handle mouse up for panning and drawing
   const handleMouseUp = useCallback((e) => {
     // Check for middle mouse button (button 1) - end panning
     if (e.evt.button === 1) {
       setIsMiddlePanning(false);
       return;
     }
-  }, []);
+
+    // Handle drawing mode (left mouse button) - finish drawing
+    if (e.evt.button === 0 && isDrawing) {
+      finishDrawing();
+      return;
+    }
+  }, [isDrawing, finishDrawing]);
 
 
   return (
     <div 
       ref={containerRef}
       className="w-full h-full bg-gray-100 border-2 border-gray-300 rounded-lg overflow-hidden relative"
-      style={{ cursor: isMiddlePanning ? 'grabbing' : 'default' }}
+      style={{ 
+        cursor: isMiddlePanning ? 'grabbing' : 
+                isDrawingMode ? 'crosshair' : 
+                'default' 
+      }}
     >
       <Stage
         ref={stageRef}
@@ -261,47 +382,50 @@ function Canvas() {
 
          {/* Shapes Layer */}
          <Layer>
-           {shapes.map((shape) => (
-             <UnifiedShape 
-               key={shape.id} 
-               shape={shape} 
-               isSelected={selectedIds.includes(shape.id)}
-               updateCursor={updateCursor}
-             />
-           ))}
+           {shapes
+             .sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0)) // Sort by z-index (lowest to highest)
+             .map((shape) => (
+               <UnifiedShape 
+                 key={shape.id} 
+                 shape={shape} 
+                 isSelected={selectedIds.includes(shape.id)}
+                 updateCursor={updateCursor}
+               />
+             ))}
            
-           {/* Removed selection rectangle (multi-select disabled) */}
-         </Layer>
+          {/* Drawing Preview - Show current drawing path while drawing */}
+          {isDrawing && currentDrawingPath.length >= 4 && (
+            <Line
+              points={currentDrawingPath}
+              stroke="#8B5CF6"
+              strokeWidth={3}
+              closed={false}
+              globalCompositeOperation="source-over"
+              perfectDrawEnabled={false}
+              listening={false}
+            />
+          )}
+
+          {/* Shape Transformer - Provides resize/rotation handles for selected shapes */}
+          <ShapeTransformer />
+        </Layer>
       </Stage>
 
       {/* Cursor Layer */}
       <CursorLayer cursors={allCursors} isVisible={isPresenceActive} />
 
+      {/* Canvas Controls */}
+      <CanvasControls />
+
       {/* Interaction Guide */}
       <InteractionGuide />
 
-       {/* UI Overlay */}
-       <div className="absolute bottom-2 left-2 sm:bottom-4 sm:left-4 bg-white bg-opacity-90 rounded px-2 sm:px-3 py-2 text-xs sm:text-sm text-gray-600 border border-gray-300 shadow-sm max-w-48 sm:max-w-none">
-         <div>Zoom: {Math.round(stageScale * 100)}%</div>
-         <div>Shapes: {shapes.length}</div>
-         {selectedIds.length > 0 && (
-           <div className="text-blue-600 font-medium">
-             ✓ {selectedIds.length} selected
-           </div>
-         )}
-         <div className="flex items-center text-xs mt-1">
-           <SyncStatusIndicator status={syncStatus} loading={syncLoading} />
-         </div>
-         <div className="text-xs text-gray-500 mt-1 hidden sm:block">
-           {selectedIds.length > 1 ? 'Multi-select active • Drag to select more' : 'Drag to select • Ctrl+click for multi-select'}
-         </div>
-       </div>
-
-      {/* User Names List */}
-      <UserNamesList />
 
       {/* Properties Panel */}
       <PropertiesPanel />
+
+      {/* Layer Management Panel */}
+      <LayerPanel />
 
       {/* AI Chat Assistant */}
       <AIChat />
@@ -326,49 +450,6 @@ function Canvas() {
       )}
     </div>
   );
-}
-
-// Sync Status Indicator Component
-function SyncStatusIndicator({ status, loading }) {
-  if (loading) {
-    return (
-      <div className="flex items-center">
-        <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-500 mr-2"></div>
-        <span className="text-blue-600">Connecting...</span>
-      </div>
-    );
-  }
-
-  switch (status) {
-    case 'connected':
-      return (
-        <div className="flex items-center">
-          <div className="w-2 h-2 bg-green-400 rounded-full mr-2"></div>
-          <span className="text-green-600">Real-time sync</span>
-        </div>
-      );
-    case 'error':
-      return (
-        <div className="flex items-center">
-          <div className="w-2 h-2 bg-red-400 rounded-full mr-2"></div>
-          <span className="text-red-600">Sync error</span>
-        </div>
-      );
-    case 'offline':
-      return (
-        <div className="flex items-center">
-          <div className="w-2 h-2 bg-gray-400 rounded-full mr-2"></div>
-          <span className="text-gray-500">Offline mode</span>
-        </div>
-      );
-    default:
-      return (
-        <div className="flex items-center">
-          <div className="w-2 h-2 bg-yellow-400 rounded-full mr-2"></div>
-          <span className="text-yellow-600">Local mode</span>
-        </div>
-      );
-  }
 }
 
 export default Canvas;

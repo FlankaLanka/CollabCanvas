@@ -8,7 +8,7 @@ function CanvasControls() {
     stageScale,
     stagePosition,
     updateStageTransform,
-    deleteSelectedShape,
+    deleteSelectedShapes,
     selectedId,
     shapes
   } = useCanvas();
@@ -132,7 +132,7 @@ function CanvasControls() {
       {selectedId && (
         <div className="flex flex-col space-y-1">
           <button
-            onClick={deleteSelectedShape}
+            onClick={deleteSelectedShapes}
             className="p-2 rounded hover:bg-red-50 text-red-600 hover:text-red-700 transition-colors"
             title="Delete Selected Shape"
           >

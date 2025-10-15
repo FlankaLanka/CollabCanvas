@@ -22,6 +22,7 @@ export const SHAPE_TYPES = {
   RECTANGLE: 'rectangle',
   CIRCLE: 'circle',
   TRIANGLE: 'triangle',
+  LINE: 'line',
   TEXT: 'text',
   TEXT_INPUT: 'text_input'
 };
@@ -31,16 +32,28 @@ export const DEFAULT_SHAPE_PROPS = {
   [SHAPE_TYPES.RECTANGLE]: {
     width: 100,
     height: 100,
-    fill: '#3B82F6'
+    fill: '#3B82F6',
+    zIndex: 0
   },
   [SHAPE_TYPES.CIRCLE]: {
-    radius: 50,
-    fill: '#10B981'
+    radiusX: 50,
+    radiusY: 50,
+    fill: '#10B981',
+    zIndex: 0
   },
   [SHAPE_TYPES.TRIANGLE]: {
     points: [0, -40, -35, 30, 35, 30], // Equilateral triangle
     fill: '#EF4444',
-    closed: true
+    closed: true,
+    zIndex: 0
+  },
+  [SHAPE_TYPES.LINE]: {
+    points: [-50, 0, 50, 0], // Horizontal line from -50,0 to 50,0 (100px total length)
+    stroke: '#8B5CF6',
+    strokeWidth: 3,
+    fill: null, // Lines don't have fill
+    closed: false,
+    zIndex: 0
   },
   [SHAPE_TYPES.TEXT]: {
     text: 'Text',
@@ -52,7 +65,8 @@ export const DEFAULT_SHAPE_PROPS = {
     align: 'left',
     verticalAlign: 'top',
     padding: 8,
-    editable: true
+    editable: true,
+    zIndex: 0
   },
   [SHAPE_TYPES.TEXT_INPUT]: {
     text: 'Input Field',
@@ -68,7 +82,8 @@ export const DEFAULT_SHAPE_PROPS = {
     background: '#FFFFFF',
     borderColor: '#D1D5DB',
     borderWidth: 1,
-    cornerRadius: 6
+    cornerRadius: 6,
+    zIndex: 0
   }
 };
 
@@ -112,12 +127,20 @@ export const SHAPE_SIZE_LIMITS = {
     maxHeight: 500
   },
   [SHAPE_TYPES.CIRCLE]: {
-    minRadius: 10,
-    maxRadius: 250
+    minRadiusX: 10,
+    maxRadiusX: 250,
+    minRadiusY: 10,
+    maxRadiusY: 250
   },
   [SHAPE_TYPES.TRIANGLE]: {
     minSize: 20,
     maxSize: 200
+  },
+  [SHAPE_TYPES.LINE]: {
+    minLength: 20,
+    maxLength: 500,
+    minStrokeWidth: 1,
+    maxStrokeWidth: 20
   },
   [SHAPE_TYPES.TEXT]: {
     minFontSize: 8,

@@ -63,9 +63,6 @@ function Navbar() {
                 <span className="hidden sm:inline">CollabCanvas</span>
                 <span className="sm:hidden">Collab</span>
               </h1>
-              <span className="ml-1 sm:ml-2 inline-flex items-center px-1.5 sm:px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                MVP
-              </span>
             </div>
           </div>
 

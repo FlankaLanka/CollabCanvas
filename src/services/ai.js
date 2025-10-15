@@ -104,7 +104,7 @@ const AI_FUNCTIONS = [
       properties: {
         shapeType: {
           type: 'string',
-          enum: ['rectangle', 'circle', 'triangle'],
+          enum: ['rectangle', 'circle', 'triangle', 'line'],
           description: 'Type of shape to create'
         },
         x: {
@@ -125,7 +125,15 @@ const AI_FUNCTIONS = [
         },
         radius: {
           type: 'number',
-          description: 'Radius of the shape (for circles)'
+          description: 'Radius of the shape (for circles) - sets both radiusX and radiusY to the same value'
+        },
+        radiusX: {
+          type: 'number',
+          description: 'X radius (horizontal radius for elliptical circles)'
+        },
+        radiusY: {
+          type: 'number',
+          description: 'Y radius (vertical radius for elliptical circles)'
         },
         scale: {
           type: 'number',
@@ -147,7 +155,7 @@ const AI_FUNCTIONS = [
       properties: {
         shapeType: {
           type: 'string',
-          enum: ['rectangle', 'circle', 'triangle'],
+          enum: ['rectangle', 'circle', 'triangle', 'line'],
           description: 'Type of shapes to create'
         },
         count: {
@@ -185,7 +193,15 @@ const AI_FUNCTIONS = [
         },
         radius: {
           type: 'number',
-          description: 'Radius of the shapes (for circles)'
+          description: 'Radius of the shapes (for circles) - sets both radiusX and radiusY to the same value'
+        },
+        radiusX: {
+          type: 'number',
+          description: 'X radius (horizontal radius for elliptical circles)'
+        },
+        radiusY: {
+          type: 'number',
+          description: 'Y radius (vertical radius for elliptical circles)'
         },
         scale: {
           type: 'number',
@@ -289,7 +305,15 @@ const AI_FUNCTIONS = [
         },
         radius: {
           type: 'number',
-          description: 'New radius (for circles)'
+          description: 'New radius (for circles) - sets both radiusX and radiusY to the same value'
+        },
+        radiusX: {
+          type: 'number',
+          description: 'New X radius (horizontal radius for elliptical circles)'
+        },
+        radiusY: {
+          type: 'number',
+          description: 'New Y radius (vertical radius for elliptical circles)'
         },
         scale: {
           type: 'number',
@@ -577,7 +601,7 @@ export class AICanvasService {
 CURRENT CONTEXT:
 Canvas state: ${JSON.stringify(canvasState, null, 2)}
 
-AVAILABLE SHAPES: rectangles, circles, triangles, text, text_input
+AVAILABLE SHAPES: rectangles, circles, triangles, lines, text, text_input
 AVAILABLE COLORS: ${COLOR_PALETTE.join(', ')} or any hex code (#RRGGBB format)
 
 FUNCTION SELECTION GUIDELINES:

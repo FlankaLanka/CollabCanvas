@@ -9,6 +9,148 @@ import {
   TEXT_ALIGN_OPTIONS
 } from '../../utils/constants';
 
+// Conversion constants for metric system
+const PIXELS_PER_CM = 37.795275591; // Standard screen DPI conversion (96 DPI)
+const pixelsToCm = (pixels) => (pixels / PIXELS_PER_CM).toFixed(2);
+const cmToPixels = (cm) => cm * PIXELS_PER_CM;
+
+// Helper Components
+const VectorInput = ({ label, x, y, onXChange, onYChange, unit = "", precision = 2 }) => (
+  <div className="mb-2">
+    <label className="block text-xs font-medium text-gray-700 mb-1">{label}</label>
+    <div className="grid grid-cols-2 gap-1">
+      <div>
+        <input
+          type="number"
+          value={parseFloat(x).toFixed(precision)}
+          onChange={(e) => onXChange(parseFloat(e.target.value) || 0)}
+          className="w-full px-2 py-1 text-xs text-gray-900 bg-white border border-gray-300 rounded focus:outline-none focus:border-blue-500"
+          step={0.01}
+        />
+      </div>
+      <div>
+        <input
+          type="number"
+          value={parseFloat(y).toFixed(precision)}
+          onChange={(e) => onYChange(parseFloat(e.target.value) || 0)}
+          className="w-full px-2 py-1 text-xs text-gray-900 bg-white border border-gray-300 rounded focus:outline-none focus:border-blue-500"
+          step={0.01}
+        />
+      </div>
+    </div>
+  </div>
+);
+
+const ScalarInput = ({ label, value, onChange, unit = "", min, max, step = 0.1, precision = 1 }) => (
+  <div className="mb-2">
+    <label className="block text-xs font-medium text-gray-700 mb-1">{label}</label>
+    <div>
+      <input
+        type="number"
+        value={parseFloat(value).toFixed(precision)}
+        onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
+        className="w-full px-2 py-1 text-xs text-gray-900 bg-white border border-gray-300 rounded focus:outline-none focus:border-blue-500"
+        min={min}
+        max={max}
+        step={step}
+      />
+    </div>
+  </div>
+);
+
+const ColorPicker = ({ color, onChange }) => {
+  const [localColor, setLocalColor] = useState(color);
+
+  useEffect(() => {
+    setLocalColor(color);
+  }, [color]);
+
+  // Convert hex to RGB
+  const hexToRgb = (hex) => {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    return result ? {
+      r: parseInt(result[1], 16),
+      g: parseInt(result[2], 16),
+      b: parseInt(result[3], 16)
+    } : { r: 0, g: 0, b: 0 };
+  };
+
+  // Convert RGB to hex
+  const rgbToHex = (r, g, b) => {
+    return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+  };
+
+  const rgb = hexToRgb(localColor);
+
+  const handleRgbChange = (component, value) => {
+    const newRgb = { ...rgb, [component]: parseInt(value) };
+    const newHex = rgbToHex(newRgb.r, newRgb.g, newRgb.b);
+    setLocalColor(newHex);
+    onChange(newHex);
+  };
+
+  return (
+    <div className="mb-2">
+      <label className="block text-xs font-medium text-gray-700 mb-1">Color</label>
+      
+      {/* Color preview */}
+      <div className="flex items-center space-x-2 mb-2 p-2 bg-white border border-gray-300 rounded">
+        <div 
+          className="w-5 h-5 rounded border border-gray-300 shadow-sm"
+          style={{ backgroundColor: localColor }}
+        />
+        <span className="text-xs font-mono text-gray-900">{localColor}</span>
+      </div>
+
+      {/* RGB Sliders */}
+      <div className="space-y-2">
+        <div>
+          <div className="flex justify-between items-center mb-1">
+            <label className="text-xs text-red-600 font-medium">R</label>
+            <span className="text-xs text-gray-600">{rgb.r}</span>
+          </div>
+          <input
+            type="range"
+            min="0"
+            max="255"
+            value={rgb.r}
+            onChange={(e) => handleRgbChange('r', e.target.value)}
+            className="w-full h-2 bg-red-200 rounded-lg appearance-none cursor-pointer"
+          />
+        </div>
+        <div>
+          <div className="flex justify-between items-center mb-1">
+            <label className="text-xs text-green-600 font-medium">G</label>
+            <span className="text-xs text-gray-600">{rgb.g}</span>
+          </div>
+          <input
+            type="range"
+            min="0"
+            max="255"
+            value={rgb.g}
+            onChange={(e) => handleRgbChange('g', e.target.value)}
+            className="w-full h-2 bg-green-200 rounded-lg appearance-none cursor-pointer"
+          />
+        </div>
+        <div>
+          <div className="flex justify-between items-center mb-1">
+            <label className="text-xs text-blue-600 font-medium">B</label>
+            <span className="text-xs text-gray-600">{rgb.b}</span>
+          </div>
+          <input
+            type="range"
+            min="0"
+            max="255"
+            value={rgb.b}
+            onChange={(e) => handleRgbChange('b', e.target.value)}
+            className="w-full h-2 bg-blue-200 rounded-lg appearance-none cursor-pointer"
+          />
+        </div>
+      </div>
+    </div>
+  );
+};
+
 function PropertiesPanel() {
   const { 
     getSelectedShape, 
@@ -45,16 +187,25 @@ function PropertiesPanel() {
       }
 
       setLocalProperties({
-        fill: selectedShape.fill || '#3B82F6',
-        // Rectangle properties
-        width: selectedShape.width || 100,
-        height: selectedShape.height || 100,
-        // Circle properties
-        radius: selectedShape.radius || 50,
-        // Triangle properties
-        scale: triangleScale,
-        // Rotation (all shapes)
+        // Transform properties (in metric units)
+        positionX: pixelsToCm(selectedShape.x || 0),
+        positionY: pixelsToCm(selectedShape.y || 0),
+        scaleX: selectedShape.scaleX || 1,
+        scaleY: selectedShape.scaleY || 1,
         rotation: selectedShape.rotation || 0,
+        
+        // Appearance
+        fill: selectedShape.fill || '#3B82F6',
+        
+        // Size properties (converted to cm)
+        width: pixelsToCm(selectedShape.width || 100),
+        height: pixelsToCm(selectedShape.height || 100),
+        radiusX: pixelsToCm(selectedShape.radiusX || selectedShape.radius || 50),
+        radiusY: pixelsToCm(selectedShape.radiusY || selectedShape.radius || 50),
+        
+        // Triangle properties
+        triangleScale: triangleScale,
+        
         // Text properties
         fontSize: selectedShape.fontSize || 20,
         fontFamily: selectedShape.fontFamily || 'Arial, sans-serif',
@@ -86,38 +237,6 @@ function PropertiesPanel() {
     }
   }, [selectedIds, isMultiSelect, selectedId, updateShape, isUpdating]);
 
-  // Handle color change
-  const handleColorChange = useCallback((colorType, color) => {
-    setLocalProperties(prev => ({ ...prev, [colorType]: color }));
-    updateShapeProperty(colorType, color);
-  }, [updateShapeProperty]);
-
-  // Handle size change with validation
-  const handleSizeChange = useCallback((property, value) => {
-    const numValue = parseFloat(value);
-    if (isNaN(numValue) || numValue <= 0 || !selectedShape) return;
-
-    // Apply constraints based on shape type
-    let constrainedValue = numValue;
-    const limits = SHAPE_SIZE_LIMITS[selectedShape.type];
-    
-    if (limits) {
-      switch (property) {
-        case 'width':
-          constrainedValue = Math.max(limits.minWidth, Math.min(limits.maxWidth, numValue));
-          break;
-        case 'height':
-          constrainedValue = Math.max(limits.minHeight, Math.min(limits.maxHeight, numValue));
-          break;
-        case 'radius':
-          constrainedValue = Math.max(limits.minRadius, Math.min(limits.maxRadius, numValue));
-          break;
-      }
-    }
-
-    setLocalProperties(prev => ({ ...prev, [property]: constrainedValue }));
-    updateShapeProperty(property, constrainedValue);
-  }, [selectedShape, updateShapeProperty]);
 
   // Handle triangle scaling
   const handleTriangleScale = useCallback((scale) => {
@@ -126,7 +245,7 @@ function PropertiesPanel() {
     const originalPoints = DEFAULT_SHAPE_PROPS[SHAPE_TYPES.TRIANGLE].points; // Base triangle from constants
     const scaledPoints = originalPoints.map(point => point * scale);
     
-    setLocalProperties(prev => ({ ...prev, scale }));
+    setLocalProperties(prev => ({ ...prev, triangleScale: scale }));
     updateShapeProperty('points', scaledPoints);
   }, [selectedShape, updateShapeProperty]);
 
@@ -186,283 +305,237 @@ function PropertiesPanel() {
     // Normalize rotation to 0-360 degrees
     const normalizedRotation = ((numValue % 360) + 360) % 360;
 
+    console.log('🔄 Rotation change:', {
+      input: rotation,
+      parsed: numValue,
+      normalized: normalizedRotation,
+      selectedShape: selectedShape?.rotation
+    });
+
     setLocalProperties(prev => ({ ...prev, rotation: normalizedRotation }));
     updateShapeProperty('rotation', normalizedRotation);
+  }, [updateShapeProperty, selectedShape]);
+
+  // Handle position changes (convert cm to pixels)
+  const handlePositionXChange = useCallback((cmValue) => {
+    const pixelValue = cmToPixels(cmValue);
+    setLocalProperties(prev => ({ ...prev, positionX: cmValue }));
+    updateShapeProperty('x', pixelValue);
+  }, [updateShapeProperty]);
+
+  const handlePositionYChange = useCallback((cmValue) => {
+    const pixelValue = cmToPixels(cmValue);
+    setLocalProperties(prev => ({ ...prev, positionY: cmValue }));
+    updateShapeProperty('y', pixelValue);
+  }, [updateShapeProperty]);
+
+  // Handle scale changes
+  const handleScaleXChange = useCallback((scaleValue) => {
+    setLocalProperties(prev => ({ ...prev, scaleX: scaleValue }));
+    updateShapeProperty('scaleX', scaleValue);
+  }, [updateShapeProperty]);
+
+  const handleScaleYChange = useCallback((scaleValue) => {
+    setLocalProperties(prev => ({ ...prev, scaleY: scaleValue }));
+    updateShapeProperty('scaleY', scaleValue);
+  }, [updateShapeProperty]);
+
+
+  // Handle color changes
+  const handleColorChange = useCallback((color) => {
+    setLocalProperties(prev => ({ ...prev, fill: color }));
+    updateShapeProperty('fill', color);
   }, [updateShapeProperty]);
 
   if (selectedIds.length === 0 || !selectedShape) {
     return (
-      <div className="absolute bottom-2 right-2 sm:bottom-4 sm:right-4 bg-white rounded-lg shadow-lg border border-gray-200 p-3 sm:p-4 w-56 sm:w-64 max-w-[calc(100vw-280px)] lg:max-w-none">
+      <div className="absolute bottom-2 right-2 sm:bottom-4 sm:right-4 bg-white rounded-lg shadow-lg border border-gray-200 p-3 w-64 max-w-[calc(100vw-280px)] lg:max-w-none">
         <div className="text-center text-gray-500">
-          <svg className="w-6 h-6 sm:w-8 sm:h-8 mx-auto mb-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-6 h-6 mx-auto mb-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
           </svg>
-          <p className="text-xs sm:text-sm">Select shapes to edit properties</p>
-          <p className="text-xs text-gray-400 mt-1">Ctrl+click or drag to select multiple</p>
+          <p className="text-sm font-medium text-gray-700">Inspector</p>
+          <p className="text-xs text-gray-500 mt-1">Select objects to edit properties</p>
+          <div className="mt-2 pt-2 border-t border-gray-200">
+            <p className="text-xs text-gray-600 leading-relaxed">
+              <kbd className="px-1 py-0.5 bg-gray-200 rounded text-xs">Ctrl</kbd>+click to toggle<br/>
+              <kbd className="px-1 py-0.5 bg-gray-200 rounded text-xs">Shift</kbd>+click to add<br/>
+              <kbd className="px-1 py-0.5 bg-gray-200 rounded text-xs">Ctrl</kbd>+<kbd className="px-1 py-0.5 bg-gray-200 rounded text-xs">A</kbd> to select all
+            </p>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="absolute bottom-2 right-2 sm:bottom-4 sm:right-4 bg-white rounded-lg shadow-lg border border-gray-200 p-3 sm:p-4 w-56 sm:w-64 max-w-[calc(100vw-280px)] lg:max-w-none max-h-80 sm:max-h-96 overflow-y-auto">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold text-gray-900">
-          {isMultiSelect ? (
-            `${selectedIds.length} Shapes Selected`
-          ) : (
-            `${selectedShape?.type || 'Shape'} Properties`
-          )}
-        </h3>
-        <div className="text-xs text-gray-500">
-          {isMultiSelect ? (
-            `Multi-edit`
-          ) : (
-            selectedShape?.id.split('-')[1] || ''
-          )}
-        </div>
-      </div>
-
-      {/* Color Section */}
-      <div className="mb-4">
-        <label className="block text-xs font-medium text-gray-700 mb-2">Color</label>
-        
-        {/* Fill Color */}
-        <div className="mb-3">
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-xs text-gray-600">Fill Color</span>
-            <div 
-              className="w-6 h-6 rounded border-2 border-gray-300"
-              style={{ backgroundColor: localProperties.fill || '#3B82F6' }}
-            />
-          </div>
-          <div className="grid grid-cols-6 gap-1">
-            {COLOR_PALETTE.map((color) => (
-              <button
-                key={color}
-                onClick={() => handleColorChange('fill', color)}
-                className={`w-7 h-7 rounded border-2 hover:scale-110 transition-transform ${
-                  (localProperties.fill || '#3B82F6') === color ? 'border-blue-500' : 'border-gray-300'
-                }`}
-                style={{ backgroundColor: color }}
-                title={color}
-              />
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Size Section */}
-      <div className="mb-4">
-        <label className="block text-xs font-medium text-gray-700 mb-2">Size</label>
-        
-        {selectedShape?.type === SHAPE_TYPES.RECTANGLE && (
-          <div className="space-y-2">
-            <div>
-              <label className="block text-xs text-gray-600 mb-1">
-                Width: {localProperties.width || 100}px
-              </label>
-              <input
-                type="range"
-                min={SHAPE_SIZE_LIMITS.rectangle.minWidth}
-                max={SHAPE_SIZE_LIMITS.rectangle.maxWidth}
-                value={localProperties.width || 100}
-                onChange={(e) => handleSizeChange('width', e.target.value)}
-                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-              />
-            </div>
-            <div>
-              <label className="block text-xs text-gray-600 mb-1">
-                Height: {localProperties.height || 100}px
-              </label>
-              <input
-                type="range"
-                min={SHAPE_SIZE_LIMITS.rectangle.minHeight}
-                max={SHAPE_SIZE_LIMITS.rectangle.maxHeight}
-                value={localProperties.height || 100}
-                onChange={(e) => handleSizeChange('height', e.target.value)}
-                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-              />
-            </div>
-          </div>
-        )}
-
-        {selectedShape?.type === SHAPE_TYPES.CIRCLE && (
-          <div>
-            <label className="block text-xs text-gray-600 mb-1">
-              Radius: {localProperties.radius || 50}px
-            </label>
-            <input
-              type="range"
-              min={SHAPE_SIZE_LIMITS.circle.minRadius}
-              max={SHAPE_SIZE_LIMITS.circle.maxRadius}
-              value={localProperties.radius || 50}
-              onChange={(e) => handleSizeChange('radius', e.target.value)}
-              className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-            />
-          </div>
-        )}
-
-        {selectedShape?.type === SHAPE_TYPES.TRIANGLE && (
-          <div>
-            <label className="block text-xs text-gray-600 mb-1">
-              Scale: {(localProperties.scale || 1).toFixed(2)}x
-            </label>
-            <input
-              type="range"
-              min="0.5"
-              max="3"
-              step="0.01"
-              value={localProperties.scale || 1}
-              onChange={(e) => handleTriangleScale(parseFloat(e.target.value))}
-              className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-            />
-          </div>
-        )}
-
-        {(selectedShape?.type === SHAPE_TYPES.TEXT || selectedShape?.type === SHAPE_TYPES.TEXT_INPUT) && (
-          <div className="space-y-2">
-            {/* Text Content */}
-            <div>
-              <label className="block text-xs text-gray-600 mb-1">Content</label>
-              {selectedShape?.type === SHAPE_TYPES.TEXT ? (
-                <textarea
-                  value={localProperties.text || ''}
-                  onChange={(e) => handleTextChange(e.target.value)}
-                  placeholder="Enter text content..."
-                  className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:border-blue-500 resize-none"
-                  rows={3}
-                />
-              ) : (
-                <input
-                  type="text"
-                  value={localProperties.text || ''}
-                  onChange={(e) => handleTextChange(e.target.value)}
-                  placeholder="Enter input field text..."
-                  className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:border-blue-500"
-                />
-              )}
-            </div>
-
-            {/* Font Size */}
-            <div>
-              <label className="block text-xs text-gray-600 mb-1">
-                Font Size: {localProperties.fontSize || 20}px
-              </label>
-              <input
-                type="range"
-                min={SHAPE_SIZE_LIMITS[selectedShape?.type]?.minFontSize || 8}
-                max={SHAPE_SIZE_LIMITS[selectedShape?.type]?.maxFontSize || 72}
-                value={localProperties.fontSize || 20}
-                onChange={(e) => handleFontSizeChange(parseFloat(e.target.value))}
-                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-              />
-            </div>
-
-            {/* Text Width */}
-            <div>
-              <label className="block text-xs text-gray-600 mb-1">
-                Width: {localProperties.width || 200}px
-              </label>
-              <input
-                type="range"
-                min={SHAPE_SIZE_LIMITS[selectedShape?.type]?.minWidth || 50}
-                max={SHAPE_SIZE_LIMITS[selectedShape?.type]?.maxWidth || 800}
-                value={localProperties.width || 200}
-                onChange={(e) => handleTextWidthChange(parseFloat(e.target.value))}
-                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-              />
-            </div>
-
-            {/* Font Family */}
-            <div>
-              <label className="block text-xs text-gray-600 mb-1">Font</label>
-              <select
-                value={localProperties.fontFamily || 'Arial, sans-serif'}
-                onChange={(e) => handleFontFamilyChange(e.target.value)}
-                className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:border-blue-500"
-              >
-                {FONT_FAMILIES.map((font) => (
-                  <option key={font} value={font} style={{ fontFamily: font }}>
-                    {font.split(',')[0]} {/* Show just the main font name */}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Text Alignment */}
-            <div>
-              <label className="block text-xs text-gray-600 mb-1">Alignment</label>
-              <div className="flex space-x-1">
-                {TEXT_ALIGN_OPTIONS.map((alignment) => (
-                  <button
-                    key={alignment}
-                    onClick={() => handleTextAlignChange(alignment)}
-                    className={`px-2 py-1 text-xs border border-gray-300 rounded capitalize ${
-                      (localProperties.align || 'left') === alignment 
-                        ? 'bg-blue-500 text-white border-blue-500' 
-                        : 'bg-white text-gray-700 hover:bg-gray-50'
-                    }`}
-                  >
-                    {alignment}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Rotation Section */}
-      <div className="mb-4">
-        <label className="block text-xs font-medium text-gray-700 mb-2">Rotation</label>
+    <div className="absolute bottom-2 right-2 sm:bottom-4 sm:right-4 bg-white rounded-lg shadow-lg border border-gray-200 p-3 w-64 max-w-[calc(100vw-280px)] lg:max-w-none max-h-[60vh] overflow-y-auto">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-3 pb-2 border-b border-gray-200">
         <div>
-          <label className="block text-xs text-gray-600 mb-1">
-            Angle: {Math.round(localProperties.rotation || 0)}°
-          </label>
-          <input
-            type="range"
-            min="0"
-            max="360"
-            step="1"
-            value={localProperties.rotation || 0}
-            onChange={(e) => handleRotationChange(parseFloat(e.target.value))}
-            className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-          />
-          <div className="flex justify-between text-xs text-gray-400 mt-1">
-            <span>0°</span>
-            <span>90°</span>
-            <span>180°</span>
-            <span>270°</span>
-            <span>360°</span>
-          </div>
-          {/* Quick rotation buttons */}
-          <div className="flex space-x-1 mt-2">
-            {[0, 45, 90, 135, 180, 225, 270, 315].map((angle) => (
-              <button
-                key={angle}
-                onClick={() => handleRotationChange(angle)}
-                className={`px-2 py-1 text-xs border border-gray-300 rounded ${
-                  Math.round(localProperties.rotation || 0) === angle 
-                    ? 'bg-blue-500 text-white border-blue-500' 
-                    : 'bg-white text-gray-700 hover:bg-gray-50'
-                }`}
-              >
-                {angle}°
-              </button>
-            ))}
-          </div>
+          <h3 className="text-sm font-semibold text-gray-900">
+            Inspector
+          </h3>
+          <p className="text-xs text-gray-600 mt-0.5">
+            {isMultiSelect ? (
+              `${selectedIds.length} objects selected`
+            ) : (
+              `${selectedShape?.type || 'object'}`
+            )}
+          </p>
+        </div>
+        <div className="text-xs text-gray-500 font-mono">
+          {selectedShape?.id.split('-')[1] || ''}
         </div>
       </div>
 
-      {/* Info */}
-      <div className="pt-2 border-t border-gray-200">
-        <div className="text-xs text-gray-500 space-y-1">
-          <div>Position: ({Math.round(selectedShape?.x || 0)}, {Math.round(selectedShape?.y || 0)})</div>
+      {/* Transform Section */}
+      <div className="mb-3">
+        <div className="flex items-center mb-2">
+          <svg className="w-4 h-4 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4l16 16m0 0V8m0 8H8" />
+          </svg>
+          <h4 className="text-sm font-medium text-gray-800">Transform</h4>
+        </div>
+        
+        <VectorInput
+          label="Position"
+          x={localProperties.positionX || 0}
+          y={localProperties.positionY || 0}
+          onXChange={handlePositionXChange}
+          onYChange={handlePositionYChange}
+          precision={2}
+        />
+
+        <ScalarInput
+          label="Rotation"
+          value={localProperties.rotation || 0}
+          onChange={handleRotationChange}
+          min={0}
+          max={360}
+          step={1}
+          precision={0}
+        />
+
+        <VectorInput
+          label="Scale"
+          x={localProperties.scaleX || 1}
+          y={localProperties.scaleY || 1}
+          onXChange={handleScaleXChange}
+          onYChange={handleScaleYChange}
+          precision={3}
+        />
+      </div>
+
+
+      {/* Text Properties */}
+      {(selectedShape?.type === SHAPE_TYPES.TEXT || selectedShape?.type === SHAPE_TYPES.TEXT_INPUT) && (
+        <div className="mb-5">
+          <div className="flex items-center mb-3">
+            <svg className="w-4 h-4 mr-2 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+            </svg>
+            <h4 className="text-sm font-medium text-gray-200">Text</h4>
+          </div>
+
+          <div className="mb-3">
+            <label className="block text-xs font-medium text-gray-400 mb-2">Content</label>
+            {selectedShape?.type === SHAPE_TYPES.TEXT ? (
+              <textarea
+                value={localProperties.text || ''}
+                onChange={(e) => handleTextChange(e.target.value)}
+                placeholder="Enter text content..."
+                className="w-full px-3 py-2 text-xs bg-gray-800 border border-gray-600 rounded focus:outline-none focus:border-blue-500 focus:bg-gray-750 text-gray-100 resize-none"
+                rows={3}
+              />
+            ) : (
+              <input
+                type="text"
+                value={localProperties.text || ''}
+                onChange={(e) => handleTextChange(e.target.value)}
+                placeholder="Enter input field text..."
+                className="w-full px-3 py-2 text-xs bg-gray-800 border border-gray-600 rounded focus:outline-none focus:border-blue-500 focus:bg-gray-750 text-gray-100"
+              />
+            )}
+          </div>
+
+          <ScalarInput
+            label="Font Size"
+            value={localProperties.fontSize || 20}
+            onChange={handleFontSizeChange}
+            unit="px"
+            min={8}
+            max={72}
+            step={1}
+            precision={0}
+          />
+
+          <div className="mb-3">
+            <label className="block text-xs font-medium text-gray-400 mb-2">Font Family</label>
+            <select
+              value={localProperties.fontFamily || 'Arial, sans-serif'}
+              onChange={(e) => handleFontFamilyChange(e.target.value)}
+              className="w-full px-3 py-2 text-xs bg-gray-800 border border-gray-600 rounded focus:outline-none focus:border-blue-500 text-gray-100"
+            >
+              {FONT_FAMILIES.map((font) => (
+                <option key={font} value={font}>
+                  {font.split(',')[0]}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="mb-3">
+            <label className="block text-xs font-medium text-gray-400 mb-2">Alignment</label>
+            <div className="flex space-x-1">
+              {TEXT_ALIGN_OPTIONS.map((alignment) => (
+                <button
+                  key={alignment}
+                  onClick={() => handleTextAlignChange(alignment)}
+                  className={`flex-1 px-2 py-1 text-xs border border-gray-600 rounded capitalize ${
+                    (localProperties.align || 'left') === alignment 
+                      ? 'bg-blue-600 text-white border-blue-500' 
+                      : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                  }`}
+                >
+                  {alignment}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Appearance Section */}
+      <div className="mb-5">
+        <div className="flex items-center mb-3">
+          <svg className="w-4 h-4 mr-2 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zM21 5a2 2 0 00-2-2h-4a2 2 0 00-2 2v12a4 4 0 004 4h4a2 2 0 002-2V5z" />
+          </svg>
+          <h4 className="text-sm font-medium text-gray-200">Appearance</h4>
+        </div>
+        
+        <ColorPicker
+          color={localProperties.fill || '#3B82F6'}
+          onChange={handleColorChange}
+        />
+      </div>
+
+      {/* Debug Info */}
+      <div className="pt-3 border-t border-gray-700">
+        <div className="text-xs text-gray-500 space-y-1 font-mono">
+          <div className="flex justify-between">
+            <span>ID:</span>
+            <span className="text-gray-400">{selectedShape?.id.split('-')[1] || 'N/A'}</span>
+          </div>
+          <div className="flex justify-between">
+            <span>Type:</span>
+            <span className="text-gray-400 capitalize">{selectedShape?.type || 'N/A'}</span>
+          </div>
           {isUpdating && (
-            <div className="text-blue-600 flex items-center">
-              <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-600 mr-1"></div>
-              Syncing...
+            <div className="text-blue-400 flex items-center mt-2">
+              <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-400 mr-2"></div>
+              <span>Syncing...</span>
             </div>
           )}
         </div>

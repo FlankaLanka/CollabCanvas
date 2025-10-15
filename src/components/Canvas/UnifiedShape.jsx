@@ -1,5 +1,5 @@
 import { useCallback, useRef, useEffect } from 'react';
-import { Rect, Circle, Line, Text, Group } from 'react-konva';
+import { Rect, Circle, Ellipse, Line, Text, Group } from 'react-konva';
 import { useCanvas } from '../../contexts/ModernCanvasContext';
 import { SHAPE_TYPES } from '../../utils/constants';
 
@@ -17,11 +17,14 @@ import { SHAPE_TYPES } from '../../utils/constants';
 function UnifiedShape({ shape, isSelected, updateCursor }) {
   const { 
     selectShape,
+    toggleShapeSelection,
+    addToSelection,
     deleteShape,
     startDrag,
     updateDragPositions,
     endDrag,
     isDragging,
+    isTransforming,
     stageRef
   } = useCanvas();
 
@@ -61,12 +64,24 @@ function UnifiedShape({ shape, isSelected, updateCursor }) {
     dragActive.current = false;
     hasMoved.current = false;
 
-    // Always single select (multi-select disabled)
-    selectShape(shape.id);
+    // Handle selection based on modifier keys
+    const isCtrlPressed = e.evt.ctrlKey || e.evt.metaKey; // Ctrl on Windows/Linux, Cmd on Mac
+    const isShiftPressed = e.evt.shiftKey;
+    
+    if (isCtrlPressed) {
+      // Ctrl+click: Toggle selection
+      toggleShapeSelection(shape.id);
+    } else if (isShiftPressed) {
+      // Shift+click: Add to selection (additive)
+      addToSelection(shape.id);
+    } else {
+      // Regular click: Single select
+      selectShape(shape.id);
+    }
     
     console.log('🖱️ Mouse down on shape:', shape.id, 'at position:', canvasPos);
     console.log('🔧 Mouse state set - ready for drag');
-  }, [shape.id, selectShape, stageRef]);
+  }, [shape.id, selectShape, toggleShapeSelection, addToSelection, stageRef]);
 
   // Handle mouse move (start drag when threshold exceeded)
   const handleMouseMove = useCallback((e) => {
@@ -98,7 +113,7 @@ function UnifiedShape({ shape, isSelected, updateCursor }) {
       dragActive.current = true;
       hasMoved.current = true;
       
-      const success = startDrag(mouseDownPos.current);
+      const success = startDrag(shape.id);
       if (success) {
         console.log('✅ Drag started successfully for shape:', shape.id);
       } else {
@@ -109,7 +124,7 @@ function UnifiedShape({ shape, isSelected, updateCursor }) {
     // Update drag positions if drag is active
     if (dragActive.current && isDragging) {
       console.log('🎯 Updating drag positions:', currentPos);
-      updateDragPositions(currentPos);
+      updateDragPositions(shape.id, currentPos);
     }
   }, [stageRef, startDrag, updateDragPositions, isDragging, shape.id]);
 
@@ -171,7 +186,7 @@ function UnifiedShape({ shape, isSelected, updateCursor }) {
         dragActive.current = true;
         hasMoved.current = true;
         
-        const success = startDrag(mouseDownPos.current);
+        const success = startDrag(shape.id);
         if (success) {
           console.log('🎯 Global drag started for shape:', shape.id);
         }
@@ -179,7 +194,7 @@ function UnifiedShape({ shape, isSelected, updateCursor }) {
       
       // Update drag positions if drag is active
       if (dragActive.current && isDragging) {
-        updateDragPositions(currentPos);
+        updateDragPositions(shape.id, currentPos);
       }
     };
 
@@ -206,7 +221,10 @@ function UnifiedShape({ shape, isSelected, updateCursor }) {
 
   // Get shape styles based on selection state
   const getShapeStyles = useCallback(() => {
-    const baseStyles = {
+    const baseStyles = shape.type === SHAPE_TYPES.LINE ? {
+      stroke: shape.stroke || shape.fill, // Lines use stroke instead of fill
+      strokeWidth: shape.strokeWidth || 3
+    } : {
       fill: shape.fill
     };
 
@@ -214,7 +232,7 @@ function UnifiedShape({ shape, isSelected, updateCursor }) {
       return {
         ...baseStyles,
         stroke: '#3B82F6',
-        strokeWidth: 3,
+        strokeWidth: shape.type === SHAPE_TYPES.LINE ? Math.max((shape.strokeWidth || 3) + 2, 5) : 3,
         shadowColor: 'rgba(59, 130, 246, 0.3)',
         shadowBlur: 10,
         shadowOffset: { x: 0, y: 0 }
@@ -222,7 +240,7 @@ function UnifiedShape({ shape, isSelected, updateCursor }) {
     }
 
     return baseStyles;
-  }, [shape.fill, isSelected]);
+  }, [shape.fill, shape.stroke, shape.strokeWidth, shape.type, isSelected]);
 
   // Determine cursor style based on state
   const getCursor = useCallback(() => {
@@ -232,25 +250,40 @@ function UnifiedShape({ shape, isSelected, updateCursor }) {
   }, [isSelected, isDragging]);
 
   // Common props for all shapes
+  const rotationRadians = (shape.rotation || 0) * (Math.PI / 180);
+  
+  // Debug rotation
+  if (shape.rotation && shape.rotation !== 0) {
+    console.log('🎯 Shape rotation:', {
+      shapeId: shape.id,
+      storedDegrees: shape.rotation,
+      convertedRadians: rotationRadians,
+      shouldBe45Deg: shape.rotation === 45,
+      actualRadians: rotationRadians
+    });
+  }
+  
   const commonProps = {
     x: shape.x,
     y: shape.y,
-    rotation: shape.rotation || 0,
+    rotation: rotationRadians, // Convert degrees to radians for Konva
     scaleX: shape.scaleX || 1,
     scaleY: shape.scaleY || 1,
     
     // Offset for rotation (center of shape)
     offsetX: shape.type === SHAPE_TYPES.RECTANGLE ? (shape.width || 100) / 2 : 
-             shape.type === SHAPE_TYPES.CIRCLE ? 0 :
+             shape.type === SHAPE_TYPES.CIRCLE ? (shape.radiusX || 50) :
+             shape.type === SHAPE_TYPES.LINE ? 0 : // Lines use their points for positioning
              shape.type === SHAPE_TYPES.TEXT || shape.type === SHAPE_TYPES.TEXT_INPUT ? (shape.width || 200) / 2 : 0,
     offsetY: shape.type === SHAPE_TYPES.RECTANGLE ? (shape.height || 100) / 2 : 
-             shape.type === SHAPE_TYPES.CIRCLE ? 0 :
+             shape.type === SHAPE_TYPES.CIRCLE ? (shape.radiusY || 50) :
+             shape.type === SHAPE_TYPES.LINE ? 0 : // Lines use their points for positioning
              shape.type === SHAPE_TYPES.TEXT_INPUT ? (shape.height || 40) / 2 : 0,
     
     ...getShapeStyles(),
     
     // SIMPLIFIED DRAG: Use Konva's built-in drag with our handlers
-    draggable: true, // Enable Konva dragging for simplicity
+    draggable: !isTransforming, // Disable dragging during transform to prevent conflicts
     onMouseDown: handleMouseDown,
     onContextMenu: handleContextMenu,
     
@@ -260,7 +293,7 @@ function UnifiedShape({ shape, isSelected, updateCursor }) {
       const pos = e.target.position();
       
       // Start drag tracking
-      startDrag(pos);
+      startDrag(shape.id);
       
       // Update user cursor to show at drag position
       if (updateCursor && stageRef.current) {
@@ -277,7 +310,7 @@ function UnifiedShape({ shape, isSelected, updateCursor }) {
       const pos = e.target.position();
       
       // Update positions
-      updateDragPositions(pos);
+      updateDragPositions(shape.id, pos);
       
       // Update user cursor to follow drag position
       if (updateCursor && stageRef.current) {
@@ -327,9 +360,10 @@ function UnifiedShape({ shape, isSelected, updateCursor }) {
     
     case SHAPE_TYPES.CIRCLE:
       return (
-        <Circle
+        <Ellipse
           {...commonProps}
-          radius={shape.radius || 50}
+          radiusX={shape.radiusX || 50}
+          radiusY={shape.radiusY || 50}
         />
       );
     
@@ -339,6 +373,18 @@ function UnifiedShape({ shape, isSelected, updateCursor }) {
           {...commonProps}
           points={shape.points || [0, -40, -35, 30, 35, 30]}
           closed={shape.closed !== false}
+        />
+      );
+    
+    case SHAPE_TYPES.LINE:
+      return (
+        <Line
+          {...commonProps}
+          points={shape.points || [-50, 0, 50, 0]}
+          stroke={shape.stroke || commonProps.fill}
+          strokeWidth={shape.strokeWidth || 3}
+          fill={null} // Lines don't have fill
+          closed={false}
         />
       );
     

@@ -33,6 +33,14 @@ export function CanvasProvider({ children }) {
   const [, forceUpdate] = useState({});
   const triggerUpdate = useCallback(() => forceUpdate({}), []);
 
+  // Drawing mode state
+  const [isDrawingMode, setIsDrawingMode] = useState(false);
+  const [currentDrawingPath, setCurrentDrawingPath] = useState([]);
+  const [isDrawing, setIsDrawing] = useState(false);
+  
+  // Transform mode state
+  const [isTransforming, setIsTransforming] = useState(false);
+
   // Basic reactive state (keep it simple for now)
   const shapes = store.shapes ? Array.from(store.shapes.values()) : [];
   const selectedIds = store.selectedIds ? Array.from(store.selectedIds) : [];
@@ -166,7 +174,7 @@ export function CanvasProvider({ children }) {
   // ===== SIMPLE ACTION IMPLEMENTATIONS =====
 
   /**
-   * Select a shape 
+   * Select a shape (single select)
    */
   const selectShape = useCallback((id) => {
     store.selectedIds.clear();
@@ -174,6 +182,55 @@ export function CanvasProvider({ children }) {
     triggerUpdate(); // Force React re-render
     console.log('🎯 Shape selected:', id);
   }, [store, triggerUpdate]);
+
+  /**
+   * Toggle shape selection (for Ctrl+click and Shift+click)
+   */
+  const toggleShapeSelection = useCallback((id) => {
+    if (store.selectedIds.has(id)) {
+      store.selectedIds.delete(id);
+      console.log('🎯 Shape deselected:', id);
+    } else {
+      store.selectedIds.add(id);
+      console.log('🎯 Shape added to selection:', id);
+    }
+    triggerUpdate(); // Force React re-render
+  }, [store, triggerUpdate]);
+
+  /**
+   * Add shape to selection (for Shift+click)
+   */
+  const addToSelection = useCallback((id) => {
+    store.selectedIds.add(id);
+    triggerUpdate(); // Force React re-render
+    console.log('🎯 Shape added to selection:', id);
+  }, [store, triggerUpdate]);
+
+  /**
+   * Select all shapes
+   */
+  const selectAllShapes = useCallback(() => {
+    store.selectedIds.clear();
+    shapes.forEach(shape => {
+      store.selectedIds.add(shape.id);
+    });
+    triggerUpdate(); // Force React re-render
+    console.log('🎯 All shapes selected:', store.selectedIds.size, 'shapes');
+  }, [store, triggerUpdate, shapes]);
+
+  /**
+   * Select shapes by type
+   */
+  const selectShapesByType = useCallback((shapeType) => {
+    store.selectedIds.clear();
+    shapes.forEach(shape => {
+      if (shape.type === shapeType) {
+        store.selectedIds.add(shape.id);
+      }
+    });
+    triggerUpdate(); // Force React re-render
+    console.log('🎯 Shapes selected by type:', shapeType, store.selectedIds.size, 'shapes');
+  }, [store, triggerUpdate, shapes]);
 
   /**
    * Clear all selections
@@ -185,54 +242,77 @@ export function CanvasProvider({ children }) {
   }, [store, triggerUpdate]);
 
   // Drag state refs (simplified - Konva handles the mechanics)
+  const dragStartPositions = useRef(new Map()); // Store original positions for group dragging
 
   /**
    * Start drag operation (simplified for Konva)
    */
-  const startDrag = useCallback((initialPos) => {    
+  const startDrag = useCallback((draggedShapeId) => {    
     if (store.selectedIds.size === 0) {
       console.warn('⚠️ Cannot start drag: no shapes selected');
       return false;
     }
 
     store.isDragging = true;
+    
+    // Store original positions of all selected shapes for group dragging
+    dragStartPositions.current.clear();
+    store.selectedIds.forEach(shapeId => {
+      const shape = store.shapes.get(shapeId);
+      if (shape) {
+        dragStartPositions.current.set(shapeId, { x: shape.x, y: shape.y });
+      }
+    });
+    
     console.log('🚀 Drag started for', store.selectedIds.size, 'shapes');
     return true;
   }, [store]);
 
   /**
-   * Update drag positions - For Konva drag events (simplified)
+   * Update drag positions - For multi-select group dragging
    */
-  const updateDragPositions = useCallback((currentPosition) => {
+  const updateDragPositions = useCallback((draggedShapeId, newPosition) => {
     if (!store.isDragging) {
       console.log('⚠️ updateDragPositions called but not dragging');
       return;
     }
 
-    console.log('🎯 Updating drag position:', currentPosition, 'for', store.selectedIds.size, 'shapes');
+    const draggedShapeOriginalPos = dragStartPositions.current.get(draggedShapeId);
+    if (!draggedShapeOriginalPos) {
+      console.log('❌ No original position found for dragged shape:', draggedShapeId);
+      return;
+    }
 
-    // Update selected shapes in store and send real-time updates
+    // Calculate the offset from the dragged shape's original position
+    const deltaX = newPosition.x - draggedShapeOriginalPos.x;
+    const deltaY = newPosition.y - draggedShapeOriginalPos.y;
+
+    console.log('🎯 Group drag update - delta:', { deltaX, deltaY }, 'for', store.selectedIds.size, 'shapes');
+
+    // Update all selected shapes maintaining their relative positions
     store.selectedIds.forEach(shapeId => {
       const shape = store.shapes.get(shapeId);
+      const originalPos = dragStartPositions.current.get(shapeId);
       
-      if (shape) {
-        console.log('📦 Updating shape in store:', shapeId, 'type:', shape.type, 'from:', {x: shape.x, y: shape.y}, 'to:', currentPosition);
+      if (shape && originalPos) {
+        const newX = originalPos.x + deltaX;
+        const newY = originalPos.y + deltaY;
+        
+        console.log('📦 Moving shape:', shapeId, 'from original:', originalPos, 'to:', {x: newX, y: newY});
         
         // Update shape position in store for immediate visual feedback
-        shape.x = currentPosition.x;
-        shape.y = currentPosition.y;
+        shape.x = newX;
+        shape.y = newY;
         
         // Send real-time position to other users immediately (throttled internally)
-        throttledUpdateShapePosition(shapeId, currentPosition);
-        console.log('📡 Sent real-time update for shape:', shapeId, shape.type, currentPosition);
+        throttledUpdateShapePosition(shapeId, { x: newX, y: newY });
       } else {
-        console.log('❌ Shape not found in store:', shapeId);
+        console.log('❌ Shape or original position not found:', shapeId);
       }
     });
 
     // Trigger React re-render for smooth visual dragging
     triggerUpdate();
-    console.log('🔄 Triggered React re-render after drag position update');
   }, [store, triggerUpdate]);
 
   /**
@@ -256,6 +336,10 @@ export function CanvasProvider({ children }) {
     });
 
     store.isDragging = false;
+    
+    // Clear drag start positions
+    dragStartPositions.current.clear();
+    
     console.log('🏁 Drag ended with final positions:', finalPositions);
 
     // Sync all final positions to database AND real-time
@@ -284,6 +368,35 @@ export function CanvasProvider({ children }) {
     }
   }, [store, updateSyncedShape]);
 
+  // ===== LAYER MANAGEMENT FUNCTIONS =====
+  // (Defined early to be used by addShape and other functions)
+
+  /**
+   * Get the highest z-index among all shapes
+   */
+  const getMaxZIndex = useCallback(() => {
+    let maxZ = 0;
+    shapes.forEach(shape => {
+      if (shape.zIndex && shape.zIndex > maxZ) {
+        maxZ = shape.zIndex;
+      }
+    });
+    return maxZ;
+  }, [shapes]);
+
+  /**
+   * Get the lowest z-index among all shapes
+   */
+  const getMinZIndex = useCallback(() => {
+    let minZ = 0;
+    shapes.forEach(shape => {
+      if (shape.zIndex !== undefined && shape.zIndex < minZ) {
+        minZ = shape.zIndex;
+      }
+    });
+    return minZ;
+  }, [shapes]);
+
   /**
    * Add new shape with database sync
    */
@@ -298,6 +411,7 @@ export function CanvasProvider({ children }) {
       type: shapeData.type || 'rectangle',
       x: shapeData.x || 100,
       y: shapeData.y || 100,
+      zIndex: getMaxZIndex() + 1, // Place new shapes on top
       width: shapeData.width || DEFAULT_SHAPE.width,
       height: shapeData.height || DEFAULT_SHAPE.height,
       fill: shapeData.fill || SHAPE_COLORS[shapes.length % SHAPE_COLORS.length],
@@ -330,7 +444,7 @@ export function CanvasProvider({ children }) {
       triggerUpdate(); // Re-render after cleanup
       throw error;
     }
-  }, [store, selectShape, createSyncedShape]);
+  }, [store, selectShape, createSyncedShape, getMaxZIndex]);
 
   /**
    * Update existing shape with immediate local update + database sync
@@ -361,6 +475,88 @@ export function CanvasProvider({ children }) {
       throw error;
     }
   }, [store, updateSyncedShape]);
+
+  /**
+   * Bring selected shapes to front
+   */
+  const bringToFront = useCallback(async () => {
+    if (selectedIds.length === 0) return;
+
+    const maxZ = getMaxZIndex();
+    let newZ = maxZ + 1;
+
+    // Update each selected shape
+    for (const shapeId of selectedIds) {
+      await updateShape(shapeId, { zIndex: newZ });
+      newZ++; // Ensure multiple shapes maintain their relative order
+    }
+
+    console.log('📤 Brought', selectedIds.length, 'shapes to front');
+  }, [selectedIds, getMaxZIndex, updateShape]);
+
+  /**
+   * Send selected shapes to back
+   */
+  const sendToBack = useCallback(async () => {
+    if (selectedIds.length === 0) return;
+
+    const minZ = getMinZIndex();
+    let newZ = minZ - 1;
+
+    // Update each selected shape (reverse order to maintain relative positioning)
+    for (let i = selectedIds.length - 1; i >= 0; i--) {
+      await updateShape(selectedIds[i], { zIndex: newZ });
+      newZ--; // Ensure multiple shapes maintain their relative order
+    }
+
+    console.log('📥 Sent', selectedIds.length, 'shapes to back');
+  }, [selectedIds, getMinZIndex, updateShape]);
+
+  /**
+   * Move selected shapes forward one layer
+   */
+  const moveForward = useCallback(async () => {
+    if (selectedIds.length === 0) return;
+
+    // Sort shapes by current z-index to maintain relative order
+    const selectedShapes = selectedIds.map(id => shapes.find(s => s.id === id)).filter(Boolean);
+    selectedShapes.sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0));
+
+    // Move each shape forward
+    for (const shape of selectedShapes) {
+      const currentZ = shape.zIndex || 0;
+      await updateShape(shape.id, { zIndex: currentZ + 1 });
+    }
+
+    console.log('⬆️ Moved', selectedIds.length, 'shapes forward');
+  }, [selectedIds, shapes, updateShape]);
+
+  /**
+   * Move selected shapes backward one layer
+   */
+  const moveBackward = useCallback(async () => {
+    if (selectedIds.length === 0) return;
+
+    // Sort shapes by current z-index (reverse order) to maintain relative order
+    const selectedShapes = selectedIds.map(id => shapes.find(s => s.id === id)).filter(Boolean);
+    selectedShapes.sort((a, b) => (b.zIndex || 0) - (a.zIndex || 0));
+
+    // Move each shape backward
+    for (const shape of selectedShapes) {
+      const currentZ = shape.zIndex || 0;
+      await updateShape(shape.id, { zIndex: currentZ - 1 });
+    }
+
+    console.log('⬇️ Moved', selectedIds.length, 'shapes backward');
+  }, [selectedIds, shapes, updateShape]);
+
+  /**
+   * Set specific z-index for a shape
+   */
+  const setShapeZIndex = useCallback(async (shapeId, zIndex) => {
+    await updateShape(shapeId, { zIndex });
+    console.log('🎚️ Set z-index', zIndex, 'for shape:', shapeId);
+  }, [updateShape]);
 
   /**
    * Delete shape with database sync
@@ -436,6 +632,141 @@ export function CanvasProvider({ children }) {
     return SHAPE_COLORS[colorIndex];
   }, [shapes]);
 
+  /**
+   * Toggle drawing mode on/off
+   */
+  const toggleDrawingMode = useCallback(() => {
+    setIsDrawingMode(prev => {
+      const newMode = !prev;
+      if (!newMode) {
+        // Clear any current drawing when exiting drawing mode
+        setCurrentDrawingPath([]);
+        setIsDrawing(false);
+      }
+      return newMode;
+    });
+  }, []);
+
+  /**
+   * Start drawing a new path
+   */
+  const startDrawing = useCallback((point) => {
+    if (!isDrawingMode) return false;
+    
+    // Validate coordinates before starting
+    if (isNaN(point.x) || isNaN(point.y) || !isFinite(point.x) || !isFinite(point.y)) {
+      console.warn('Invalid drawing start point:', point);
+      return false; // Don't start drawing with invalid coordinates
+    }
+    
+    setIsDrawing(true);
+    setCurrentDrawingPath([point.x, point.y]);
+    console.log('🎨 Drawing started at:', { x: point.x, y: point.y });
+    return true;
+  }, [isDrawingMode]);
+
+  /**
+   * Add point to current drawing path (with validation to prevent artifacts)
+   */
+  const addDrawingPoint = useCallback((point) => {
+    if (!isDrawing) return;
+    
+    setCurrentDrawingPath(prev => {
+      // Validate point coordinates first
+      if (isNaN(point.x) || isNaN(point.y) || !isFinite(point.x) || !isFinite(point.y)) {
+        console.warn('Invalid drawing point detected:', point);
+        return prev; // Skip invalid points
+      }
+      
+      if (prev.length >= 2) {
+        const lastX = prev[prev.length - 2];
+        const lastY = prev[prev.length - 1];
+        const distance = Math.sqrt(Math.pow(point.x - lastX, 2) + Math.pow(point.y - lastY, 2));
+        
+        // Skip points that are too close (prevents over-dense paths)
+        if (distance < 2) {
+          return prev;
+        }
+        
+        // Skip points that are too far away (prevents zig-zag artifacts from coordinate errors)
+        // This is especially important when zoomed in/out
+        if (distance > 500) {
+          console.warn('Drawing point too far from previous point (likely coordinate error):', {
+            prev: { x: lastX, y: lastY },
+            current: point,
+            distance: distance
+          });
+          return prev; // Skip this point to prevent large jumps
+        }
+      }
+      
+      return [...prev, point.x, point.y];
+    });
+  }, [isDrawing]);
+
+  /**
+   * Finish current drawing and create a line shape
+   */
+  const finishDrawing = useCallback(async () => {
+    if (!isDrawing || currentDrawingPath.length < 4) {
+      // Need at least 2 points (4 coordinates) to make a line
+      setIsDrawing(false);
+      setCurrentDrawingPath([]);
+      return;
+    }
+
+    // Create a line shape from the drawn path
+    const currentUser = getCurrentUser();
+    const timestamp = Date.now();
+    
+    const newShape = {
+      id: `shape_${timestamp}_${Math.random().toString(36).substr(2, 9)}`,
+      type: 'line',
+      x: 0, // Points are absolute, so shape position is at origin
+      y: 0,
+      points: currentDrawingPath,
+      stroke: getNextColor(),
+      strokeWidth: 3,
+      closed: false,
+      createdBy: currentUser?.uid || 'anonymous',
+      createdAt: new Date(),
+      lastModifiedBy: currentUser?.uid || 'anonymous',
+      lastModifiedAt: new Date()
+    };
+
+    // Add to store and sync to database
+    store.shapes.set(newShape.id, newShape);
+    triggerUpdate();
+
+    try {
+      await createSyncedShape(newShape);
+      console.log('✅ Drawing saved as shape:', newShape.id);
+    } catch (error) {
+      console.error('❌ Error saving drawing:', error);
+    }
+
+    // Reset drawing state
+    setIsDrawing(false);
+    setCurrentDrawingPath([]);
+  }, [isDrawing, currentDrawingPath, getNextColor, triggerUpdate, createSyncedShape]);
+
+  /**
+   * Cancel current drawing without saving
+   */
+  const cancelDrawing = useCallback(() => {
+    setIsDrawing(false);
+    setCurrentDrawingPath([]);
+  }, []);
+
+  /**
+   * Set transform mode (used by ShapeTransformer)
+   */
+  const setTransformMode = useCallback((transforming) => {
+    setIsTransforming(transforming);
+    console.log(transforming ? '🔄 Transform mode ENABLED' : '✅ Transform mode DISABLED');
+  }, []);
+
+
   // ===== CONTEXT VALUE =====
 
   const value = {
@@ -457,8 +788,12 @@ export function CanvasProvider({ children }) {
     deleteSelectedShapes,
     deleteAllShapes,
     
-    // Selection (single-select only) 
+    // Selection (enhanced multi-select)
     selectShape,
+    toggleShapeSelection,
+    addToSelection,
+    selectAllShapes,
+    selectShapesByType,
     clearSelection,
     isShapeSelected: (id) => store.selectedIds.has(id),
     
@@ -481,6 +816,29 @@ export function CanvasProvider({ children }) {
       return shapes.filter(shape => store.selectedIds.has(shape.id));
     },
     getNextColor,
+    
+    // Drawing mode functions
+    isDrawingMode,
+    currentDrawingPath,
+    isDrawing,
+    toggleDrawingMode,
+    startDrawing,
+    addDrawingPoint,
+    finishDrawing,
+    cancelDrawing,
+    
+    // Transform mode functions
+    isTransforming,
+    setTransformMode,
+    
+    // Layer management functions
+    getMaxZIndex,
+    getMinZIndex,
+    bringToFront,
+    sendToBack,
+    moveForward,
+    moveBackward,
+    setShapeZIndex,
     
     // Legacy compatibility
     localDragStates: store.locallyDraggedShapes || new Set(),
