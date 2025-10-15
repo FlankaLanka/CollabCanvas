@@ -6,14 +6,56 @@ import {
   LAYOUT_CONSTANTS 
 } from './aiLayoutHelpers';
 
+// Environment detection
+const isDevelopment = import.meta.env.DEV;
+const isProduction = import.meta.env.PROD;
+
 // API endpoint for OpenAI requests (proxied through our backend)
 const AI_API_ENDPOINT = '/api/ai-chat';
 
-// Helper function to make requests to our backend AI API
+// Initialize OpenAI client for development mode
+let openaiClient = null;
+
+// Lazy initialization of OpenAI client for development
+async function getOpenAIClient() {
+  if (isDevelopment && !openaiClient) {
+    const OpenAI = (await import('openai')).default;
+    openaiClient = new OpenAI({
+      apiKey: import.meta.env.VITE_OPENAI_API_KEY,
+      dangerouslyAllowBrowser: true // Only for development
+    });
+  }
+  return openaiClient;
+}
+
+// Helper function to make AI requests (handles both dev and production)
 async function makeAIRequest(messages, functions = null, function_call = null) {
   try {
-    console.log('🤖 Making AI request to:', AI_API_ENDPOINT);
-    
+    console.log(`🤖 Making AI request (${isDevelopment ? 'DEV - Direct' : 'PROD - Proxy'})`);
+
+    // Development mode: Direct OpenAI calls
+    if (isDevelopment) {
+      const client = await getOpenAIClient();
+      if (!client) {
+        throw new Error('OpenAI client not available in development mode');
+      }
+
+      console.log('📡 Calling OpenAI directly...');
+      const completion = await client.chat.completions.create({
+        model: 'gpt-4',
+        messages,
+        functions: functions || undefined,
+        function_call: function_call || undefined,
+        temperature: 0.7,
+        max_tokens: 2000,
+      });
+
+      console.log('✅ OpenAI direct call success');
+      return completion;
+    }
+
+    // Production mode: API proxy
+    console.log('📡 Using API proxy:', AI_API_ENDPOINT);
     const response = await fetch(AI_API_ENDPOINT, {
       method: 'POST',
       headers: {
@@ -43,11 +85,11 @@ async function makeAIRequest(messages, functions = null, function_call = null) {
     }
 
     const result = await response.json();
-    console.log('✅ AI API success');
+    console.log('✅ AI API proxy success');
     return result;
 
   } catch (error) {
-    console.error('❌ AI API request failed:', error);
+    console.error('❌ AI request failed:', error);
     throw error;
   }
 }
