@@ -272,11 +272,11 @@ function UnifiedShape({ shape, isSelected, updateCursor }) {
     
     // Offset for rotation (center of shape)
     offsetX: shape.type === SHAPE_TYPES.RECTANGLE ? (shape.width || 100) / 2 : 
-             shape.type === SHAPE_TYPES.CIRCLE ? (shape.radiusX || 50) :
+             shape.type === SHAPE_TYPES.CIRCLE ? 0 : // Circles are already center-positioned in Konva
              shape.type === SHAPE_TYPES.LINE ? 0 : // Lines use their points for positioning
              shape.type === SHAPE_TYPES.TEXT || shape.type === SHAPE_TYPES.TEXT_INPUT ? (shape.width || 200) / 2 : 0,
     offsetY: shape.type === SHAPE_TYPES.RECTANGLE ? (shape.height || 100) / 2 : 
-             shape.type === SHAPE_TYPES.CIRCLE ? (shape.radiusY || 50) :
+             shape.type === SHAPE_TYPES.CIRCLE ? 0 : // Circles are already center-positioned in Konva
              shape.type === SHAPE_TYPES.LINE ? 0 : // Lines use their points for positioning
              shape.type === SHAPE_TYPES.TEXT_INPUT ? (shape.height || 40) / 2 : 0,
     

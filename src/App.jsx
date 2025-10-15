@@ -13,21 +13,18 @@ import './index.css';
 
 // Canvas App component with keyboard shortcuts
 function CanvasApp() {
-  const { deleteSelectedShapes, selectedId } = useCanvas();
+  // Note: Removed deleteSelectedShapes and selectedId as backspace deletion was disabled
 
   // Handle keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e) => {
-      // Delete selected shape with Delete or Backspace key
-      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedId) {
-        e.preventDefault();
-        deleteSelectedShapes();
-      }
+      // Keyboard shortcuts can be added here if needed
+      // Note: Backspace/Delete key deletion has been removed
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [deleteSelectedShapes, selectedId]);
+  }, []);
 
   return (
     <div className="h-screen bg-gray-50 flex flex-col">

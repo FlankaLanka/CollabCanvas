@@ -5,38 +5,62 @@ import { CanvasAPI } from '../services/canvasAPI';
 
 /**
  * useAI Hook - Manages AI interactions with the canvas
+ * 
+ * Provides a clean interface for React components to interact with the AI agent
+ * Handles conversation state, processing status, and error management
  */
 export function useAI() {
   const canvasContext = useCanvas();
+  
+  // State management
   const [conversation, setConversation] = useState([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState(null);
   
-  // Initialize AI service (only once)
+  // Service references (initialized once)
   const aiServiceRef = useRef(null);
   const canvasAPIRef = useRef(null);
 
+  // Initialize AI service when canvas context is available
   useEffect(() => {
     if (!aiServiceRef.current && canvasContext) {
-      canvasAPIRef.current = new CanvasAPI(canvasContext);
-      aiServiceRef.current = new AICanvasService(canvasAPIRef.current);
+      try {
+        canvasAPIRef.current = new CanvasAPI(canvasContext);
+        aiServiceRef.current = new AICanvasService(canvasAPIRef.current);
+        console.log('🤖 AI service initialized successfully');
+      } catch (error) {
+        console.error('❌ Failed to initialize AI service:', error);
+        setError(`AI initialization failed: ${error.message}`);
+      }
     }
   }, [canvasContext]);
 
-  // Check if AI is available (API key configured)
+  /**
+   * Check if AI is available (server-side configuration)
+   */
   const isAIAvailable = useCallback(() => {
-    const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
-    return !!(apiKey && apiKey !== 'your-openai-api-key-here');
+    // AI service must be initialized
+    if (!aiServiceRef.current) return false;
+    
+    // In development, AI requires backend server setup
+    // Show warning but allow service to be "available" so users see helpful error messages
+    return true;
   }, []);
 
-  // Send message to AI
+  /**
+   * Send a message to the AI and get a response with actions
+   */
   const sendMessage = useCallback(async (userMessage) => {
     if (!aiServiceRef.current) {
-      throw new Error('AI service not initialized');
+      throw new Error('AI service not initialized. Please check your setup.');
     }
 
     if (!isAIAvailable()) {
-      throw new Error('OpenAI API key not configured. Please add VITE_OPENAI_API_KEY to your .env file.');
+      throw new Error('AI service not available. Please ensure the server is running and OpenAI API key is configured.');
+    }
+
+    if (!userMessage || userMessage.trim() === '') {
+      throw new Error('Please enter a message');
     }
 
     // Clear any previous errors
@@ -44,35 +68,44 @@ export function useAI() {
     setIsProcessing(true);
 
     try {
-      // Add user message to conversation immediately
+      // Add user message to conversation immediately for better UX
       const userMsg = {
         role: 'user',
-        content: userMessage,
+        content: userMessage.trim(),
         timestamp: Date.now()
       };
       
       setConversation(prev => [...prev, userMsg]);
+      console.log('🤖 Processing user message:', userMessage);
 
-      // Process AI command
-      const aiResponse = await aiServiceRef.current.processCommand(userMessage);
+      // Process the command with the AI service
+      const startTime = Date.now();
+      const aiResponse = await aiServiceRef.current.processCommand(userMessage.trim());
+      const processingTime = Date.now() - startTime;
 
       // Add AI response to conversation
       const aiMsg = {
         role: 'assistant',
         content: aiResponse.response,
         timestamp: Date.now(),
-        functionCalls: aiResponse.functionCalls,
-        results: aiResponse.results
+        functionCalls: aiResponse.functionCalls || [],
+        results: aiResponse.results || [],
+        processingTime
       };
 
       setConversation(prev => [...prev, aiMsg]);
 
-      console.log('🤖 AI Response:', aiResponse);
+      console.log(`✅ AI response processed in ${processingTime}ms:`, aiResponse);
+
+      // Performance warning if response is slow
+      if (processingTime > 2000) {
+        console.warn(`⚠️ AI response took ${processingTime}ms (target: <2000ms)`);
+      }
 
       return aiResponse;
 
     } catch (error) {
-      console.error('AI processing error:', error);
+      console.error('❌ AI processing error:', error);
       
       // Add error message to conversation
       const errorMsg = {
@@ -91,7 +124,9 @@ export function useAI() {
     }
   }, [isAIAvailable]);
 
-  // Clear conversation history
+  /**
+   * Clear conversation history
+   */
   const clearConversation = useCallback(() => {
     setConversation([]);
     setError(null);
@@ -99,47 +134,74 @@ export function useAI() {
     if (aiServiceRef.current) {
       aiServiceRef.current.clearHistory();
     }
+    
+    console.log('🧹 Conversation cleared');
   }, []);
 
-  // Get AI conversation history
+  /**
+   * Get AI conversation history for persistence or analysis
+   */
   const getAIHistory = useCallback(() => {
     return aiServiceRef.current?.getHistory() || [];
   }, []);
 
-  // Restart AI service (useful for debugging)
-  const restartAI = useCallback(() => {
-    if (canvasAPIRef.current) {
-      aiServiceRef.current = new AICanvasService(canvasAPIRef.current);
-      clearConversation();
-    }
-  }, [clearConversation]);
+  /**
+   * Get current canvas state (useful for debugging)
+   */
+  const getCanvasState = useCallback(() => {
+    return canvasAPIRef.current?.getCanvasState() || null;
+  }, []);
 
-  // Get AI service status
-  const getAIStatus = useCallback(() => {
+  /**
+   * Restart AI service (useful for debugging or after errors)
+   */
+  const restartAI = useCallback(() => {
+    if (canvasContext) {
+      try {
+        canvasAPIRef.current = new CanvasAPI(canvasContext);
+        aiServiceRef.current = new AICanvasService(canvasAPIRef.current);
+        setError(null);
+        console.log('🔄 AI service restarted');
+      } catch (error) {
+        console.error('❌ Failed to restart AI service:', error);
+        setError(`AI restart failed: ${error.message}`);
+      }
+    }
+  }, [canvasContext]);
+
+  /**
+   * Get processing status and performance info
+   */
+  const getStatus = useCallback(() => {
+    const lastMessage = conversation[conversation.length - 1];
     return {
       isAvailable: isAIAvailable(),
-      isInitialized: !!aiServiceRef.current,
       isProcessing,
       hasError: !!error,
-      conversationLength: conversation.length
+      messageCount: conversation.length,
+      lastProcessingTime: lastMessage?.processingTime || null,
+      averageProcessingTime: conversation
+        .filter(msg => msg.role === 'assistant' && msg.processingTime)
+        .reduce((sum, msg, _, arr) => sum + msg.processingTime / arr.length, 0) || null
     };
-  }, [isAIAvailable, isProcessing, error, conversation.length]);
+  }, [conversation, isProcessing, error, isAIAvailable]);
 
   return {
+    // Core functionality
+    sendMessage,
+    clearConversation,
+    
     // State
     conversation,
     isProcessing,
     error,
     
-    // Actions
-    sendMessage,
-    clearConversation,
-    
     // Utilities
-    isAIAvailable: isAIAvailable(),
+    isAIAvailable,
     getAIHistory,
+    getCanvasState,
     restartAI,
-    getAIStatus
+    getStatus
   };
 }
 

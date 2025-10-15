@@ -1,23 +1,43 @@
 /**
- * AI Chat API Proxy - Production OpenAI Integration
+ * Local Development Server for AI API
  * 
- * This API endpoint proxies requests to OpenAI to keep API keys secure in production.
- * It handles function calling for canvas manipulation and provides error handling.
+ * This provides the /api/ai-chat endpoint for local development.
+ * Run this alongside your Vite dev server to enable AI features.
+ * 
+ * Usage:
+ * 1. Set OPENAI_API_KEY environment variable
+ * 2. Run: node server.js
+ * 3. Update AI_API_ENDPOINT in ai.js to http://localhost:3001/api/ai-chat
  */
 
-export default async function handler(req, res) {
-  // Only allow POST requests
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed. Use POST.' });
-  }
+import express from 'express';
+import cors from 'cors';
+import dotenv from 'dotenv';
 
+dotenv.config();
+
+// Add fetch for Node.js if not available
+if (!globalThis.fetch) {
+  const { default: fetch } = await import('node-fetch');
+  globalThis.fetch = fetch;
+}
+
+const app = express();
+const PORT = 3001;
+
+// Middleware
+app.use(cors());
+app.use(express.json({ limit: '1mb' }));
+
+// AI Chat endpoint (same logic as api/ai-chat.js)
+app.post('/api/ai-chat', async (req, res) => {
   try {
     // Validate OpenAI API key
     const openaiApiKey = process.env.OPENAI_API_KEY;
     if (!openaiApiKey) {
       console.error('❌ OpenAI API key not configured');
       return res.status(500).json({ 
-        error: 'OpenAI API key not configured on server' 
+        error: 'OpenAI API key not configured. Please set OPENAI_API_KEY environment variable.' 
       });
     }
 
@@ -68,20 +88,32 @@ export default async function handler(req, res) {
     return res.status(200).json(data);
 
   } catch (error) {
-    console.error('❌ API proxy error:', error);
+    console.error('❌ API server error:', error);
     
     return res.status(500).json({
       error: 'Internal server error',
       message: error.message
     });
   }
-}
+});
 
-// Configuration for Vercel
-export const config = {
-  api: {
-    bodyParser: {
-      sizeLimit: '1mb',
-    },
-  },
-};
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.json({ 
+    status: 'ok', 
+    message: 'AI API server running',
+    hasApiKey: !!process.env.OPENAI_API_KEY 
+  });
+});
+
+// Start server
+app.listen(PORT, () => {
+  console.log(`🤖 AI API server running on http://localhost:${PORT}`);
+  console.log(`🔑 OpenAI API key: ${process.env.OPENAI_API_KEY ? 'Configured' : 'Missing'}`);
+  console.log(`📡 Endpoint: http://localhost:${PORT}/api/ai-chat`);
+  
+  if (!process.env.OPENAI_API_KEY) {
+    console.log('\n⚠️  Warning: OPENAI_API_KEY environment variable not set');
+    console.log('   Set it with: export OPENAI_API_KEY="your-api-key-here"');
+  }
+});

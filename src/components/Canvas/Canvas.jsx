@@ -3,7 +3,6 @@ import { Stage, Layer, Rect, Line } from 'react-konva';
 import { useCanvas } from '../../contexts/ModernCanvasContext';
 import UnifiedShape from './UnifiedShape';
 import ShapeTransformer from './ShapeTransformer';
-import LayerPanel from './LayerPanel';
 import CanvasControls from './CanvasControls';
 import CursorLayer from './CursorLayer';
 import PropertiesPanel from './PropertiesPanel';
@@ -423,9 +422,6 @@ function Canvas() {
 
       {/* Properties Panel */}
       <PropertiesPanel />
-
-      {/* Layer Management Panel */}
-      <LayerPanel />
 
       {/* AI Chat Assistant */}
       <AIChat />

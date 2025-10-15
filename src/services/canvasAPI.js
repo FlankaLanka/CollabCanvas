@@ -1,19 +1,4 @@
-import { SHAPE_TYPES, DEFAULT_SHAPE_PROPS } from '../utils/constants';
-import { parseColor } from './ai';
-import {
-  getViewportCenter as getImprovedViewportCenter,
-  snapPositionToGrid,
-  getCanvasBounds,
-  keepInBounds,
-  getCenteredPosition,
-  layoutVertical,
-  layoutHorizontal,
-  layoutGrid,
-  findAvailablePosition,
-  getRecommendedFormWidth,
-  createShapeGroup,
-  LAYOUT_CONSTANTS
-} from './aiLayoutHelpers';
+import { SHAPE_TYPES, DEFAULT_SHAPE_PROPS, COLOR_PALETTE } from '../utils/constants';
 
 /**
  * Canvas API Service - Bridges AI function calls to canvas operations
@@ -22,870 +7,587 @@ import {
 export class CanvasAPI {
   constructor(canvasContext) {
     this.canvas = canvasContext;
+    console.log('🔧 CanvasAPI initialized with context:', {
+      hasShapes: !!canvasContext.shapes,
+      shapesCount: canvasContext.shapes?.length || 0,
+      hasSelectedIds: !!canvasContext.selectedIds,
+      contextKeys: Object.keys(canvasContext)
+    });
   }
 
-  // Get current canvas state for AI context
+  /**
+   * Get current canvas state for AI context
+   */
   getCanvasState() {
     const shapes = this.canvas.shapes || [];
+    console.log('🔍 CanvasAPI getCanvasState called:', {
+      shapesCount: shapes.length,
+      shapes: shapes.map(s => ({ id: s.id, type: s.type, x: s.x, y: s.y })),
+      selectedIds: Array.from(this.canvas.selectedIds || [])
+    });
+    
     return {
-      totalShapes: shapes.length,
       shapes: shapes.map(shape => ({
         id: shape.id,
         type: shape.type,
-        x: Math.round(shape.x),
-        y: Math.round(shape.y),
+        x: Math.round(shape.x || 0),
+        y: Math.round(shape.y || 0),
         width: shape.width,
         height: shape.height,
         radiusX: shape.radiusX,
         radiusY: shape.radiusY,
         fill: shape.fill,
         text: shape.text,
-        rotation: shape.rotation || 0
+        rotation: shape.rotation || 0,
+        zIndex: shape.zIndex || 0
       })),
-      viewport: {
-        scale: this.canvas.stageScale || 1,
-        position: this.canvas.stagePosition || { x: 0, y: 0 }
-      }
+      totalShapes: shapes.length,
+      selectedIds: Array.from(this.canvas.selectedIds || [])
     };
   }
 
-  // Create a new shape
-  async createShape({ shapeType, x, y, width, height, radius, radiusX, radiusY, scale = 1, fill }) {
+  /**
+   * Get viewport center for positioning new elements
+   */
+  getViewportCenter() {
+    // Use canvas context to get current viewport center
+    if (this.canvas.getViewportCenter) {
+      return this.canvas.getViewportCenter();
+    }
+    
+    // Fallback to stage center if available
+    const stageRef = this.canvas.stageRef?.current;
+    if (stageRef) {
+      const stage = stageRef;
+      const scale = this.canvas.stageScale || 1;
+      const position = this.canvas.stagePosition || { x: 0, y: 0 };
+      
+      return {
+        x: (-position.x + stage.width() / 2) / scale,
+        y: (-position.y + stage.height() / 2) / scale
+      };
+    }
+    
+    // Default fallback
+    return { x: 400, y: 300 };
+  }
+
+  /**
+   * Parse color input (name or hex) to valid hex color
+   */  
+  parseColor(colorInput) {
+    if (!colorInput) return '#3B82F6'; // Default blue
+    
+    // If it's already a hex color, return it
+    if (/^#[0-9A-F]{6}$/i.test(colorInput)) {
+      return colorInput;
+    }
+    
+    // Check if it matches a color from our palette (case insensitive)
+    const colorName = colorInput.toLowerCase();
+    const colorMap = {
+      'blue': '#3B82F6',
+      'red': '#EF4444', 
+      'green': '#10B981',
+      'yellow': '#F59E0B',
+      'purple': '#8B5CF6',
+      'pink': '#EC4899',
+      'indigo': '#6366F1',
+      'orange': '#F97316',
+      'teal': '#14B8A6',
+      'cyan': '#06B6D4',
+      'lime': '#84CC16',
+      'emerald': '#059669'
+    };
+    
+    return colorMap[colorName] || COLOR_PALETTE[0] || '#3B82F6';
+  }
+
+  /**
+   * Check if a color is dark (to determine if text should be white)
+   */
+  isDarkColor(hexColor) {
+    if (!hexColor || !hexColor.startsWith('#')) return false;
+    
+    // Convert hex to RGB
+    const hex = hexColor.replace('#', '');
+    const r = parseInt(hex.substr(0, 2), 16);
+    const g = parseInt(hex.substr(2, 2), 16);
+    const b = parseInt(hex.substr(4, 2), 16);
+    
+    // Calculate luminance using standard formula
+    const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    
+    // Consider dark if luminance is below 0.5
+    return luminance < 0.5;
+  }
+
+  /**
+   * CREATE SHAPE - Core creation function
+   */
+  async createShape({
+    shapeType,
+    x,
+    y,
+    width,
+    height,
+    radiusX,
+    radiusY,
+    fill,
+    text,
+    fontSize
+  }) {
     const defaults = DEFAULT_SHAPE_PROPS[shapeType];
     if (!defaults) {
-      throw new Error(`Unsupported shape type: ${shapeType}`);
+      throw new Error(`Invalid shape type: ${shapeType}`);
     }
 
-    const color = fill ? parseColor(fill) : defaults.fill;
-    
-    // Snap position to grid and ensure it's within bounds
-    const elementWidth = width || (shapeType === SHAPE_TYPES.CIRCLE ? (radiusX || radius || defaults.radiusX) * 2 : 
-                                   shapeType === SHAPE_TYPES.LINE ? 100 : // Lines get a 100px default width for layout
-                                   defaults.width);
-    const elementHeight = height || (shapeType === SHAPE_TYPES.CIRCLE ? (radiusY || radius || defaults.radiusY) * 2 : 
-                                     shapeType === SHAPE_TYPES.LINE ? 20 : // Lines get a 20px default height for layout
-                                     defaults.height);
-    
-    const canvasContext = { stageRef: this.canvas.stageRef, stageScale: this.canvas.stageScale, stagePosition: this.canvas.stagePosition };
-    const bounds = getCanvasBounds(canvasContext);
-    
-    let position = snapPositionToGrid({ x, y });
-    position = keepInBounds(position, { width: elementWidth, height: elementHeight }, bounds);
-    
-    const shapeData = {
+    const newShape = {
       type: shapeType,
-      x: position.x,
-      y: position.y,
-      fill: color
+      x: x || 0,
+      y: y || 0,
+      fill: this.parseColor(fill) || defaults.fill,
+      zIndex: (this.canvas.shapes?.length || 0) + 1
     };
 
     // Add type-specific properties
     switch (shapeType) {
       case SHAPE_TYPES.RECTANGLE:
-        shapeData.width = width || defaults.width;
-        shapeData.height = height || defaults.height;
+        newShape.width = width || defaults.width;
+        newShape.height = height || defaults.height;
         break;
       
       case SHAPE_TYPES.CIRCLE:
-        shapeData.radiusX = radiusX || radius || defaults.radiusX;
-        shapeData.radiusY = radiusY || radius || defaults.radiusY;
-        break;
-      
-      case SHAPE_TYPES.TRIANGLE:
-        const triangleScale = scale || 1;
-        shapeData.points = defaults.points.map(point => point * triangleScale);
-        shapeData.closed = true;
-        break;
-      
-      case SHAPE_TYPES.LINE:
-        const lineScale = scale || 1;
-        shapeData.points = defaults.points.map(point => point * lineScale);
-        shapeData.stroke = defaults.stroke;
-        shapeData.strokeWidth = defaults.strokeWidth;
-        shapeData.closed = false;
-        break;
-    }
-
-    const newShape = await this.canvas.addShape(shapeData);
-    
-    return {
-      success: true,
-      shapeId: newShape.id,
-      message: `Created ${shapeType} at position (${x}, ${y})`
-    };
-  }
-
-  // Create multiple shapes at once
-  async createMultipleShapes({ shapeType, count, startX, startY, spacing = LAYOUT_CONSTANTS.DEFAULT_HORIZONTAL_SPACING, arrangement = 'row', width, height, radius, radiusX, radiusY, scale = 1, fill }) {
-    const defaults = DEFAULT_SHAPE_PROPS[shapeType];
-    if (!defaults) {
-      throw new Error(`Unsupported shape type: ${shapeType}`);
-    }
-
-    const color = fill ? parseColor(fill) : defaults.fill;
-    const createdShapes = [];
-    
-    // Use improved layout helpers for positioning
-    const canvasContext = { stageRef: this.canvas.stageRef, stageScale: this.canvas.stageScale, stagePosition: this.canvas.stagePosition };
-    const elementWidth = width || (shapeType === SHAPE_TYPES.CIRCLE ? (radiusX || radius || defaults.radiusX) * 2 : 
-                                   shapeType === SHAPE_TYPES.LINE ? 100 : // Lines get a 100px default width for layout
-                                   defaults.width);
-    const elementHeight = height || (shapeType === SHAPE_TYPES.CIRCLE ? (radiusY || radius || defaults.radiusY) * 2 : 
-                                     shapeType === SHAPE_TYPES.LINE ? 20 : // Lines get a 20px default height for layout
-                                     defaults.height);
-    
-    // Create dummy elements for layout calculation
-    const elements = Array(count).fill({ width: elementWidth, height: elementHeight });
-    
-    let positions;
-    const startPosition = findAvailablePosition(
-      { width: elementWidth, height: elementHeight }, 
-      this.getCanvasState(), 
-      canvasContext,
-      snapPositionToGrid({ x: startX, y: startY })
-    );
-    
-    switch (arrangement) {
-      case 'row':
-        positions = layoutHorizontal(elements, { startPosition, spacing, canvasContext });
-        break;
-      case 'column': 
-        positions = layoutVertical(elements, { startPosition, spacing, canvasContext });
-        break;
-      case 'grid':
-        positions = layoutGrid(elements, { startPosition, spacing, canvasContext });
-        break;
-      case 'scattered':
-        positions = this.calculateScatteredPositions(count, startPosition, spacing, canvasContext);
-        break;
-      default:
-        positions = layoutHorizontal(elements, { startPosition, spacing, canvasContext });
-    }
-    
-    for (let i = 0; i < count; i++) {
-      const pos = positions[i];
-      
-      const shapeData = {
-        type: shapeType,
-        x: pos.x,
-        y: pos.y,
-        fill: color
-      };
-
-      // Add type-specific properties
-      switch (shapeType) {
-        case SHAPE_TYPES.RECTANGLE:
-          shapeData.width = width || defaults.width;
-          shapeData.height = height || defaults.height;
-          break;
-        
-        case SHAPE_TYPES.CIRCLE:
-          shapeData.radiusX = radiusX || radius || defaults.radiusX;
-          shapeData.radiusY = radiusY || radius || defaults.radiusY;
-          break;
-        
-        case SHAPE_TYPES.TRIANGLE:
-          const triangleScale = scale || 1;
-          shapeData.points = defaults.points.map(point => point * triangleScale);
-          shapeData.closed = true;
-          break;
-        
-        case SHAPE_TYPES.LINE:
-          const lineScale = scale || 1;
-          shapeData.points = defaults.points.map(point => point * lineScale);
-          shapeData.stroke = defaults.stroke;
-          shapeData.strokeWidth = defaults.strokeWidth;
-          shapeData.closed = false;
-          break;
-      }
-
-      const newShape = await this.canvas.addShape(shapeData);
-      createdShapes.push(newShape);
-    }
-    
-    return {
-      success: true,
-      shapeIds: createdShapes.map(s => s.id),
-      count: createdShapes.length,
-      message: `Created ${count} ${shapeType}s in ${arrangement} arrangement`
-    };
-  }
-
-  // Helper function to calculate scattered positions with improved layout
-  calculateScatteredPositions(count, startPosition, spacing, canvasContext) {
-    const positions = [];
-    const bounds = getCanvasBounds(canvasContext);
-    
-    for (let i = 0; i < count; i++) {
-      // Create a scattered pattern in a spiral
-      const angle = (i / count) * 2 * Math.PI;
-      const radius = 50 + (i * 20);
-      
-      let position = {
-        x: startPosition.x + Math.cos(angle) * radius,
-        y: startPosition.y + Math.sin(angle) * radius
-      };
-      
-      // Snap to grid and keep in bounds
-      position = snapPositionToGrid(position);
-      position = keepInBounds(position, { width: 100, height: 100 }, bounds);
-      
-      positions.push(position);
-    }
-    
-    return positions;
-  }
-
-  // Create text or text input
-  async createText({ text, textType, x, y, fontSize, fontFamily, fill, width, align }) {
-    const defaults = DEFAULT_SHAPE_PROPS[textType === 'text_input' ? SHAPE_TYPES.TEXT_INPUT : SHAPE_TYPES.TEXT];
-    
-    const textData = {
-      type: textType === 'text_input' ? SHAPE_TYPES.TEXT_INPUT : SHAPE_TYPES.TEXT,
-      x: x,
-      y: y,
-      text: text,
-      fontSize: fontSize || defaults.fontSize,
-      fontFamily: fontFamily || defaults.fontFamily,
-      fill: fill ? parseColor(fill) : defaults.fill,
-      width: width || defaults.width,
-      align: align || defaults.align,
-      padding: defaults.padding,
-      editable: true
-    };
-
-    // Add text input specific properties
-    if (textType === 'text_input') {
-      textData.height = defaults.height;
-      textData.background = defaults.background;
-      textData.borderColor = defaults.borderColor;
-      textData.borderWidth = defaults.borderWidth;
-      textData.cornerRadius = defaults.cornerRadius;
-    } else {
-      textData.height = 'auto';
-      textData.verticalAlign = defaults.verticalAlign;
-    }
-
-    const newShape = await this.canvas.addShape(textData);
-    
-    return {
-      success: true,
-      shapeId: newShape.id,
-      message: `Created ${textType} "${text}" at position (${x}, ${y})`
-    };
-  }
-
-  // Move a shape to new position
-  async moveShape(shapeId, x, y) {
-    const shape = this.canvas.getShape(shapeId);
-    if (!shape) {
-      throw new Error(`Shape with ID ${shapeId} not found`);
-    }
-
-    await this.canvas.updateShape(shapeId, { x, y });
-    
-    return {
-      success: true,
-      message: `Moved ${shape.type} to position (${x}, ${y})`
-    };
-  }
-
-  // Resize a shape
-  async resizeShape(shapeId, { width, height, radius, radiusX, radiusY, scale }) {
-    const shape = this.canvas.getShape(shapeId);
-    if (!shape) {
-      throw new Error(`Shape with ID ${shapeId} not found`);
-    }
-
-    const updates = {};
-
-    switch (shape.type) {
-      case SHAPE_TYPES.RECTANGLE:
-        if (width !== undefined) updates.width = width;
-        if (height !== undefined) updates.height = height;
-        break;
-      
-      case SHAPE_TYPES.CIRCLE:
-        if (radiusX !== undefined) updates.radiusX = radiusX;
-        if (radiusY !== undefined) updates.radiusY = radiusY;
-        if (radius !== undefined) { // Legacy support for single radius
-          updates.radiusX = radius;
-          updates.radiusY = radius;
-        }
-        break;
-      
-      case SHAPE_TYPES.TRIANGLE:
-        if (scale !== undefined) {
-          const originalPoints = DEFAULT_SHAPE_PROPS[SHAPE_TYPES.TRIANGLE].points;
-          updates.points = originalPoints.map(point => point * scale);
-        }
+        newShape.radiusX = radiusX || defaults.radiusX;
+        newShape.radiusY = radiusY || defaults.radiusY;
         break;
       
       case SHAPE_TYPES.TEXT:
       case SHAPE_TYPES.TEXT_INPUT:
-        if (width !== undefined) updates.width = width;
-        if (height !== undefined && shape.type === SHAPE_TYPES.TEXT_INPUT) {
-          updates.height = height;
+        newShape.text = text || defaults.text;
+        newShape.fontSize = fontSize || defaults.fontSize;
+        newShape.fontFamily = defaults.fontFamily;
+        newShape.width = width || defaults.width;
+        newShape.height = height || defaults.height;
+        
+        // Ensure text is always dark unless explicitly specified or background is dark
+        if (!fill) {
+          newShape.fill = '#1F2937'; // Dark text for readability
+        } else if (fill && this.isDarkColor(fill)) {
+          newShape.fill = '#FFFFFF'; // White text on dark backgrounds
+        }
+        break;
+      
+      case SHAPE_TYPES.TRIANGLE:
+        // Triangles use points array, not width/height
+        newShape.points = [...defaults.points]; // Copy original triangle points
+        newShape.closed = defaults.closed;
+        
+        // If width/height specified, calculate scale factors
+        if (width || height) {
+          const originalWidth = Math.abs(defaults.points[4] - defaults.points[2]); // 70px
+          const originalHeight = Math.abs(defaults.points[1] - defaults.points[3]); // 70px
+          
+          if (width) {
+            newShape.scaleX = width / originalWidth;
+          }
+          if (height) {
+            newShape.scaleY = height / originalHeight;
+          }
         }
         break;
     }
 
-    if (Object.keys(updates).length === 0) {
-      throw new Error(`No valid resize parameters for ${shape.type}`);
+    // Add to canvas using context method
+    await this.canvas.addShape(newShape);
+    
+    console.log('✅ Created shape:', newShape.type, 'at', `(${newShape.x}, ${newShape.y})`);
+    return newShape;
+  }
+
+  /**
+   * MOVE SHAPE - Manipulation function
+   */
+  async moveShape(shapeId, x, y) {
+    const shape = this.canvas.shapes?.find(s => s.id === shapeId);
+    if (!shape) {
+      throw new Error(`Shape not found: ${shapeId}`);
+    }
+
+    await this.canvas.updateShape(shapeId, { x, y });
+    console.log('✅ Moved shape:', shapeId, 'to', `(${x}, ${y})`);
+    return { shapeId, x, y };
+  }
+
+  /**
+   * RESIZE SHAPE - Manipulation function
+   */
+  async resizeShape(shapeId, { width, height, radiusX, radiusY, scale }) {
+    const shape = this.canvas.shapes?.find(s => s.id === shapeId);
+    if (!shape) {
+      throw new Error(`Shape not found: ${shapeId}`);
+    }
+
+    const updates = {};
+
+    // For rectangles and other shapes with width/height
+        if (width !== undefined) updates.width = width;
+        if (height !== undefined) updates.height = height;
+    
+    // For circles with radiusX/Y  
+    if (radiusX !== undefined) updates.radiusX = radiusX;
+    if (radiusY !== undefined) updates.radiusY = radiusY;
+    
+    // Convert scale factor to actual pixel dimensions
+        if (scale !== undefined) {
+      switch (shape.type) {
+        case SHAPE_TYPES.RECTANGLE:
+          if (shape.width) updates.width = Math.round(shape.width * scale);
+          if (shape.height) updates.height = Math.round(shape.height * scale);
+          break;
+        case SHAPE_TYPES.CIRCLE:
+          if (shape.radiusX) updates.radiusX = Math.round(shape.radiusX * scale);
+          if (shape.radiusY) updates.radiusY = Math.round(shape.radiusY * scale);
+        break;
+      case SHAPE_TYPES.TEXT:
+      case SHAPE_TYPES.TEXT_INPUT:
+          if (shape.width) updates.width = Math.round(shape.width * scale);
+          if (shape.height) updates.height = Math.round(shape.height * scale);
+          if (shape.fontSize) updates.fontSize = Math.round(shape.fontSize * scale);
+        break;
+        default:
+          // For other shapes, fall back to scale properties
+          updates.scaleX = scale;
+          updates.scaleY = scale;
+    }
     }
 
     await this.canvas.updateShape(shapeId, updates);
-    
-    return {
-      success: true,
-      message: `Resized ${shape.type}`
-    };
+    console.log('✅ Resized shape:', shapeId, updates);
+    return { shapeId, ...updates };
   }
 
-  // Rotate a shape (we need to add rotation support to the Shape component)
+  /**
+   * ROTATE SHAPE - Manipulation function
+   */
   async rotateShape(shapeId, degrees) {
-    const shape = this.canvas.getShape(shapeId);
+    const shape = this.canvas.shapes?.find(s => s.id === shapeId);
     if (!shape) {
-      throw new Error(`Shape with ID ${shapeId} not found`);
+      throw new Error(`Shape not found: ${shapeId}`);
     }
 
     await this.canvas.updateShape(shapeId, { rotation: degrees });
-    
-    return {
-      success: true,
-      message: `Rotated ${shape.type} by ${degrees} degrees`
-    };
+    console.log('✅ Rotated shape:', shapeId, 'to', degrees, 'degrees');
+    return { shapeId, rotation: degrees };
   }
 
-  // Change shape color
-  async changeShapeColor(shapeId, fill) {
-    const shape = this.canvas.getShape(shapeId);
+  /**
+   * CHANGE SHAPE COLOR - Manipulation function
+   */
+  async changeShapeColor(shapeId, color) {
+    const shape = this.canvas.shapes?.find(s => s.id === shapeId);
     if (!shape) {
-      throw new Error(`Shape with ID ${shapeId} not found`);
+      throw new Error(`Shape not found: ${shapeId}`);
     }
 
-    const color = parseColor(fill);
-    await this.canvas.updateShape(shapeId, { fill: color });
-    
-    return {
-      success: true,
-      message: `Changed ${shape.type} color to ${color}`
-    };
+    const parsedColor = this.parseColor(color);
+    await this.canvas.updateShape(shapeId, { fill: parsedColor });
+    console.log('✅ Changed shape color:', shapeId, 'to', parsedColor);
+    return { shapeId, fill: parsedColor };
   }
 
-  // Delete a shape
-  async deleteShape(shapeId) {
-    const shape = this.canvas.getShape(shapeId);
-    if (!shape) {
-      throw new Error(`Shape with ID ${shapeId} not found`);
-    }
-
-    await this.canvas.deleteShape(shapeId);
+  /**
+   * CREATE MULTIPLE SHAPES - Layout function
+   */
+  async createMultipleShapes({
+    shapeType,
+    count,
+    arrangement = 'row',
+    startX,
+    startY,
+    spacing = 80,
+    fill
+  }) {
+    const shapes = [];
+    const defaults = DEFAULT_SHAPE_PROPS[shapeType];
+    const color = this.parseColor(fill) || defaults.fill;
     
-    return {
-      success: true,
-      message: `Deleted ${shape.type}`
-    };
-  }
-
-  // Arrange shapes in a horizontal row
-  async arrangeInRow({ shapeIds, startX, y, spacing }) {
-    let currentX = startX;
-    let arrangedCount = 0;
-
-    for (const shapeId of shapeIds) {
-      const shape = this.canvas.getShape(shapeId);
-      if (shape) {
-        await this.canvas.updateShape(shapeId, { x: currentX, y: y });
-        
-        // Calculate next position based on shape width
-        let shapeWidth = 100; // default
-        if (shape.type === SHAPE_TYPES.RECTANGLE) {
-          shapeWidth = shape.width || 100;
-        } else if (shape.type === SHAPE_TYPES.CIRCLE) {
-          shapeWidth = (shape.radiusX || 50) * 2;
-        } else if (shape.type === SHAPE_TYPES.TEXT || shape.type === SHAPE_TYPES.TEXT_INPUT) {
-          shapeWidth = shape.width || 200;
-        }
-        
-        currentX += shapeWidth + spacing;
-        arrangedCount++;
-      }
-    }
-    
-    return {
-      success: true,
-      message: `Arranged ${arrangedCount} shapes in a row`
-    };
-  }
-
-  // Arrange shapes in a grid
-  async arrangeInGrid({ shapeIds, startX, startY, rows, cols, spacingX, spacingY }) {
-    let arrangedCount = 0;
-
-    for (let i = 0; i < shapeIds.length && i < rows * cols; i++) {
-      const shapeId = shapeIds[i];
-      const shape = this.canvas.getShape(shapeId);
+    // Calculate positions based on arrangement
+    for (let i = 0; i < count; i++) {
+      let x = startX;
+      let y = startY;
       
-      if (shape) {
-        const row = Math.floor(i / cols);
-        const col = i % cols;
-        
-        const x = startX + col * spacingX;
-        const y = startY + row * spacingY;
-        
-        await this.canvas.updateShape(shapeId, { x, y });
-        arrangedCount++;
+      switch (arrangement) {
+        case 'row':
+          x = startX + (i * spacing);
+          break;
+        case 'column':
+          y = startY + (i * spacing);
+          break;
+        case 'grid':
+          const cols = Math.ceil(Math.sqrt(count));
+          x = startX + ((i % cols) * spacing);
+          y = startY + (Math.floor(i / cols) * spacing);
+          break;
       }
+      
+      const shape = await this.createShape({
+        shapeType,
+        x,
+        y,
+        fill: color
+      });
+      
+      shapes.push(shape);
     }
     
-    return {
-      success: true,
-      message: `Arranged ${arrangedCount} shapes in a ${rows}x${cols} grid`
-    };
+    console.log('✅ Created', count, shapeType, 'shapes in', arrangement, 'arrangement');
+    return shapes;
   }
 
-  // Create a login form (complex layout)
-  async createLoginForm({ x, y, width }) {
-    const elements = [];
+  /**
+   * ARRANGE SHAPES - Layout function
+   */
+  async arrangeShapes({ shapeIds, arrangement, centerX, centerY, spacing = 80 }) {
+    const shapes = this.canvas.shapes?.filter(s => shapeIds.includes(s.id)) || [];
+    if (shapes.length === 0) {
+      throw new Error('No valid shapes found to arrange');
+    }
+
+    const arrangements = [];
     
-    // Use improved layout system
-    const canvasContext = { stageRef: this.canvas.stageRef, stageScale: this.canvas.stageScale, stagePosition: this.canvas.stagePosition };
-    const formWidth = width || getRecommendedFormWidth(canvasContext);
-    const containerPadding = LAYOUT_CONSTANTS.FORM_CONTAINER_PADDING;
-    const fieldHeight = 45;
-    const formSpacing = LAYOUT_CONSTANTS.DEFAULT_VERTICAL_SPACING;
-    
-    // Find optimal position for the form
-    const formElements = [
-      { width: formWidth, height: 35 }, // Title
-      { width: formWidth, height: 20 }, // Username label
-      { width: formWidth, height: fieldHeight }, // Username field
-      { width: formWidth, height: 20 }, // Password label  
-      { width: formWidth, height: fieldHeight }, // Password field
-      { width: formWidth, height: 50 } // Submit button
-    ];
-    
-    const totalFormHeight = formElements.reduce((total, el, i) => total + el.height + (i > 0 ? formSpacing : 0), 0);
-    const containerHeight = totalFormHeight + (containerPadding * 2);
-    
-    // Position form in viewport, avoiding existing shapes
-    let preferredPosition;
-    if (x !== undefined && y !== undefined) {
-      // Use provided coordinates
-      preferredPosition = snapPositionToGrid({ x, y });
-    } else {
-      // Default to viewport center for better positioning
-      preferredPosition = getImprovedViewportCenter(canvasContext);
+    for (let i = 0; i < shapes.length; i++) {
+      let x = centerX;
+      let y = centerY;
+      
+      switch (arrangement) {
+        case 'row':
+          x = centerX + ((i - (shapes.length - 1) / 2) * spacing);
+          break;
+        case 'column':
+          y = centerY + ((i - (shapes.length - 1) / 2) * spacing);
+          break;
+        case 'grid':
+          const cols = Math.ceil(Math.sqrt(shapes.length));
+          x = centerX + (((i % cols) - (cols - 1) / 2) * spacing);
+          y = centerY + ((Math.floor(i / cols) - (Math.ceil(shapes.length / cols) - 1) / 2) * spacing);
+          break;
+        case 'circle':
+          const angle = (i / shapes.length) * 2 * Math.PI;
+          const radius = spacing;
+          x = centerX + Math.cos(angle) * radius;
+          y = centerY + Math.sin(angle) * radius;
+          break;
+      }
+      
+      await this.moveShape(shapes[i].id, x, y);
+      arrangements.push({ shapeId: shapes[i].id, x, y });
     }
     
-    const formPosition = findAvailablePosition(
-      { width: formWidth + (containerPadding * 2), height: containerHeight },
-      this.getCanvasState(),
-      canvasContext, 
-      preferredPosition
-    );
-    
-    // Debug logging for positioning
-    console.log('🎯 Login Form Positioning Debug:', {
-      providedCoords: { x, y },
-      preferredPosition,
-      finalPosition: formPosition,
-      formWidth,
-      containerHeight,
-      canvasContext: {
-        stageScale: canvasContext.stageScale,
-        stagePosition: canvasContext.stagePosition
-      }
-    });
-    
-    // Form container background (for better visual grouping)
-    const containerShape = await this.canvas.addShape({
-      type: SHAPE_TYPES.RECTANGLE,
-      x: formPosition.x,
-      y: formPosition.y,
-      width: formWidth + (containerPadding * 2),
-      height: containerHeight,
-      fill: '#F9FAFB'
-    });
-    elements.push(containerShape);
+    console.log('✅ Arranged', shapes.length, 'shapes in', arrangement, 'pattern');
+    return arrangements;
+  }
 
-    // Container border
-    const borderShape = await this.canvas.addShape({
-      type: SHAPE_TYPES.RECTANGLE,
-      x: formPosition.x - 1,
-      y: formPosition.y - 1,
-      width: formWidth + (containerPadding * 2) + 2,
-      height: containerHeight + 2,
-      fill: '#E5E7EB'
-    });
-    elements.push(borderShape);
-
-    // Use layout helpers for consistent positioning
-    const contentStartX = formPosition.x + containerPadding;
-    const contentStartY = formPosition.y + containerPadding;
-    
-    // Use layout vertical for consistent spacing
-    const elementPositions = layoutVertical(formElements, {
-      startPosition: { x: contentStartX, y: contentStartY },
-      spacing: formSpacing,
-      alignment: 'left',
-      containerWidth: formWidth,
-      canvasContext
-    });
-
-    let elementIndex = 0;
+  /**
+   * CREATE LOGIN FORM - Complex function
+   */
+  async createLoginForm({ x, y, width = 300 }) {
+    const formElements = [];
+    const spacing = 20;
+    let currentY = y;
     
     // Title
-    const titlePos = elementPositions[elementIndex++];
-    const titleShape = await this.canvas.addShape({
-      type: SHAPE_TYPES.TEXT,
-      x: titlePos.x,
-      y: titlePos.y,
+    const title = await this.createShape({
+      shapeType: SHAPE_TYPES.TEXT,
+      x: x + width/2 - 50,
+      y: currentY,
       text: 'Login',
-      fontSize: 28,
-      fontFamily: 'Inter, Arial, sans-serif',
-      fill: '#1F2937',
-      width: formWidth,
-      align: 'center',
-      padding: 0
+      fontSize: 24,
+      fill: '#1F2937'
     });
-    elements.push(titleShape);
+    formElements.push(title);
+    currentY += 50;
 
     // Username label  
-    const usernameLabelPos = elementPositions[elementIndex++];
-    const usernameLabel = await this.canvas.addShape({
-      type: SHAPE_TYPES.TEXT,
-      x: usernameLabelPos.x,
-      y: usernameLabelPos.y,
-      text: 'Username',
+    const usernameLabel = await this.createShape({
+      shapeType: SHAPE_TYPES.TEXT,
+      x: x,
+      y: currentY,
+      text: 'Username:',
       fontSize: 14,
-      fontFamily: 'Inter, Arial, sans-serif',
-      fill: '#374151',
-      width: formWidth,
-      align: 'left',
-      padding: 0
+      fill: '#374151'
     });
-    elements.push(usernameLabel);
-
-    // Username field
-    const usernamePos = elementPositions[elementIndex++];
-    const usernameShape = await this.canvas.addShape({
-      type: SHAPE_TYPES.TEXT_INPUT,
-      x: usernamePos.x,
-      y: usernamePos.y,
-      text: 'Enter your username',
-      fontSize: 16,
-      fontFamily: 'Inter, Arial, sans-serif',
-      fill: '#9CA3AF',
-      width: formWidth,
-      height: fieldHeight,
-      padding: 12,
-      background: '#FFFFFF',
-      borderColor: '#D1D5DB',
-      borderWidth: 2,
-      cornerRadius: 8,
-      align: 'left'
+    formElements.push(usernameLabel);
+    currentY += 25;
+    
+    // Username input
+    const usernameInput = await this.createShape({
+      shapeType: SHAPE_TYPES.TEXT_INPUT,
+      x: x,
+      y: currentY,
+      width: width,
+      height: 40,
+      text: '',
+      fill: '#1F2937' // Dark text for readability
     });
-    elements.push(usernameShape);
+    formElements.push(usernameInput);
+    currentY += 60;
 
     // Password label
-    const passwordLabelPos = elementPositions[elementIndex++];
-    const passwordLabel = await this.canvas.addShape({
-      type: SHAPE_TYPES.TEXT,
-      x: passwordLabelPos.x,
-      y: passwordLabelPos.y,
-      text: 'Password',
+    const passwordLabel = await this.createShape({
+      shapeType: SHAPE_TYPES.TEXT,
+      x: x,
+      y: currentY,
+      text: 'Password:',
       fontSize: 14,
-      fontFamily: 'Inter, Arial, sans-serif',
-      fill: '#374151',
-      width: formWidth,
-      align: 'left',
-      padding: 0
+      fill: '#374151'
     });
-    elements.push(passwordLabel);
-
-    // Password field
-    const passwordPos = elementPositions[elementIndex++];
-    const passwordShape = await this.canvas.addShape({
-      type: SHAPE_TYPES.TEXT_INPUT,
-      x: passwordPos.x,
-      y: passwordPos.y,
-      text: 'Enter your password',
-      fontSize: 16,
-      fontFamily: 'Inter, Arial, sans-serif',
-      fill: '#9CA3AF',
-      width: formWidth,
-      height: fieldHeight,
-      padding: 12,
-      background: '#FFFFFF',
-      borderColor: '#D1D5DB',
-      borderWidth: 2,
-      cornerRadius: 8,
-      align: 'left'
+    formElements.push(passwordLabel);
+    currentY += 25;
+    
+    // Password input
+    const passwordInput = await this.createShape({
+      shapeType: SHAPE_TYPES.TEXT_INPUT,
+      x: x,
+      y: currentY,
+      width: width,
+      height: 40,
+      text: '',
+      fill: '#1F2937' // Dark text for readability
     });
-    elements.push(passwordShape);
+    formElements.push(passwordInput);
+    currentY += 60;
 
     // Submit button
-    const buttonPos = elementPositions[elementIndex++];
-    const buttonShape = await this.canvas.addShape({
-      type: SHAPE_TYPES.RECTANGLE,
-      x: buttonPos.x,
-      y: buttonPos.y,
-      width: formWidth,
-      height: 50,
+    const submitButton = await this.createShape({
+      shapeType: SHAPE_TYPES.RECTANGLE,
+      x: x + width/2 - 60,
+      y: currentY,
+      width: 120,
+      height: 40,
       fill: '#3B82F6'
     });
-    elements.push(buttonShape);
-
-    // Button text - properly centered within the button
-    const buttonText = await this.canvas.addShape({
-      type: SHAPE_TYPES.TEXT,
-      x: buttonPos.x,
-      y: buttonPos.y + 15, // Center vertically within the 50px button
-      text: 'Sign In',
+    formElements.push(submitButton);
+    
+    // Button text
+    const buttonText = await this.createShape({
+      shapeType: SHAPE_TYPES.TEXT,
+      x: x + width/2 - 25,
+      y: currentY + 12,
+      text: 'Login',
       fontSize: 16,
-      fontFamily: 'Inter, Arial, sans-serif',
-      fill: '#FFFFFF',
-      width: formWidth,
-      align: 'center',
-      padding: 0
+      fill: '#FFFFFF'
     });
-    elements.push(buttonText);
-
-    // Create a shape group for the form
-    const formGroup = createShapeGroup(
-      `login-form-${Date.now()}`,
-      elements,
-      'form'
-    );
-
-    return {
-      success: true,
-      elements: elements.map(el => el.id),
-      group: formGroup,
-      message: `Created login form with ${elements.length} elements at (${formPosition.x}, ${formPosition.y})`
-    };
+    formElements.push(buttonText);
+    
+    console.log('✅ Created login form with', formElements.length, 'elements');
+    return formElements;
   }
 
-  // Create a navigation bar
-  async createNavBar({ x, y, width = 800, menuItems }) {
-    const elements = [];
-    const navHeight = 60;
-    
-    // Use improved layout system
-    const canvasContext = { stageRef: this.canvas.stageRef, stageScale: this.canvas.stageScale, stagePosition: this.canvas.stagePosition };
-    
-    // Find optimal position for navigation bar
-    let preferredNavPosition;
-    if (x !== undefined && y !== undefined) {
-      preferredNavPosition = snapPositionToGrid({ x, y });
-    } else {
-      // Position at top of viewport for navigation bars
-      const center = getImprovedViewportCenter(canvasContext);
-      const bounds = getCanvasBounds(canvasContext);
-      preferredNavPosition = { x: center.x - (width / 2), y: bounds.top + 20 };
-    }
-    
-    const navPosition = findAvailablePosition(
-      { width: width, height: navHeight },
-      this.getCanvasState(),
-      canvasContext,
-      preferredNavPosition
-    );
-    
-    // Navigation bar shadow/border
-    const shadowShape = await this.canvas.addShape({
-      type: SHAPE_TYPES.RECTANGLE,
-      x: navPosition.x,
-      y: navPosition.y + 2,
-      width: width,
-      height: navHeight,
-      fill: '#0F172A'
-    });
-    elements.push(shadowShape);
+  /**
+   * CREATE NAVIGATION BAR - Complex function
+   */
+  async createNavigationBar({ x, y, menuItems, width = 600 }) {
+    const navElements = [];
+    const itemWidth = width / menuItems.length;
     
     // Background bar
-    const backgroundShape = await this.canvas.addShape({
-      type: SHAPE_TYPES.RECTANGLE,
-      x: navPosition.x,
-      y: navPosition.y,
+    const navBg = await this.createShape({
+      shapeType: SHAPE_TYPES.RECTANGLE,
+      x: x,
+      y: y,
       width: width,
-      height: navHeight,
-      fill: '#1E293B'
+      height: 50,
+      fill: '#1F2937'
     });
-    elements.push(backgroundShape);
-
-    // Menu items with improved horizontal layout
-    const menuElements = menuItems.map(item => ({
-      text: item,
-      width: width / menuItems.length,
-      height: 20
-    }));
-
-    const menuPositions = layoutHorizontal(menuElements, {
-      startPosition: { x: navPosition.x, y: navPosition.y + 20 },
-      spacing: 0, // No spacing for nav items
-      alignment: 'center',
-      canvasContext
-    });
+    navElements.push(navBg);
     
+    // Menu items
     for (let i = 0; i < menuItems.length; i++) {
-      const item = menuItems[i];
-      const menuText = await this.canvas.addShape({
-        type: SHAPE_TYPES.TEXT,
-        x: menuPositions[i].x,
-        y: menuPositions[i].y,
-        text: item,
+      const itemX = x + (i * itemWidth) + itemWidth/2 - 30;
+      const menuText = await this.createShape({
+        shapeType: SHAPE_TYPES.TEXT,
+        x: itemX,
+        y: y + 15,
+        text: menuItems[i],
         fontSize: 16,
-        fontFamily: 'Inter, Arial, sans-serif',
-        fill: '#F1F5F9',
-        width: menuElements[i].width,
-        align: 'center',
-        padding: 0
+        fill: '#FFFFFF'
       });
-      elements.push(menuText);
+      navElements.push(menuText);
     }
-
-    // Create navigation group
-    const navGroup = createShapeGroup(
-      `navbar-${Date.now()}`,
-      elements,
-      'navigation'
-    );
-
-    return {
-      success: true,
-      elements: elements.map(el => el.id),
-      group: navGroup,
-      message: `Created navigation bar with ${menuItems.length} menu items at (${navPosition.x}, ${navPosition.y})`
-    };
+    
+    console.log('✅ Created navigation bar with', menuItems.length, 'menu items');
+    return navElements;
   }
 
-  // Create a card layout
-  async createCardLayout({ x, y, width = 300, height = 200, title, content = '' }) {
-    const elements = [];
-    const cardPadding = LAYOUT_CONSTANTS.CARD_PADDING;
-    
-    // Use improved layout system
-    const canvasContext = { stageRef: this.canvas.stageRef, stageScale: this.canvas.stageScale, stagePosition: this.canvas.stagePosition };
-    
-    // Find optimal position for the card
-    let preferredCardPosition;
-    if (x !== undefined && y !== undefined) {
-      preferredCardPosition = snapPositionToGrid({ x, y });
-    } else {
-      // Default to viewport center for cards
-      preferredCardPosition = getImprovedViewportCenter(canvasContext);
-    }
-    
-    const cardPosition = findAvailablePosition(
-      { width: width, height: height },
-      this.getCanvasState(),
-      canvasContext,
-      preferredCardPosition
-    );
-    
-    // Card shadow (for depth)
-    const shadowShape = await this.canvas.addShape({
-      type: SHAPE_TYPES.RECTANGLE,
-      x: cardPosition.x + 4,
-      y: cardPosition.y + 4,
-      width: width,
-      height: height,
-      fill: '#0000001A' // Subtle shadow
-    });
-    elements.push(shadowShape);
-
-    // Card border
-    const borderShape = await this.canvas.addShape({
-      type: SHAPE_TYPES.RECTANGLE,
-      x: cardPosition.x - 1,
-      y: cardPosition.y - 1,
-      width: width + 2,
-      height: height + 2,
-      fill: '#E2E8F0'
-    });
-    elements.push(borderShape);
+  /**
+   * CREATE CARD LAYOUT - Complex function
+   */
+  async createCardLayout({ x, y, title, content = '', width = 250, height = 200 }) {
+    const cardElements = [];
     
     // Card background
-    const cardShape = await this.canvas.addShape({
-      type: SHAPE_TYPES.RECTANGLE,
-      x: cardPosition.x,
-      y: cardPosition.y,
+    const cardBg = await this.createShape({
+      shapeType: SHAPE_TYPES.RECTANGLE,
+      x: x,
+      y: y,
       width: width,
       height: height,
       fill: '#FFFFFF'
     });
-    elements.push(cardShape);
-
-    // Content elements for layout
-    const cardElements = [
-      { width: width - (cardPadding * 2), height: 30 } // Title
-    ];
+    cardElements.push(cardBg);
     
-    if (content && content.trim()) {
-      cardElements.push({ width: width - (cardPadding * 2), height: 60 }); // Content
-    }
-
-    // Use vertical layout for card contents
-    const contentPositions = layoutVertical(cardElements, {
-      startPosition: { x: cardPosition.x + cardPadding, y: cardPosition.y + cardPadding },
-      spacing: LAYOUT_CONSTANTS.DEFAULT_VERTICAL_SPACING,
-      alignment: 'left',
-      containerWidth: width - (cardPadding * 2),
-      canvasContext
+    // Card border
+    const cardBorder = await this.createShape({
+      shapeType: SHAPE_TYPES.RECTANGLE,
+      x: x,
+      y: y,
+      width: width,
+      height: height,
+      fill: '#E5E7EB'
     });
-
-    let elementIndex = 0;
+    cardElements.push(cardBorder);
 
     // Title
-    const titlePos = contentPositions[elementIndex++];
-    const titleShape = await this.canvas.addShape({
-      type: SHAPE_TYPES.TEXT,
-      x: titlePos.x,
-      y: titlePos.y,
+    const titleText = await this.createShape({
+      shapeType: SHAPE_TYPES.TEXT,
+      x: x + 20,
+      y: y + 20,
       text: title,
-      fontSize: 22,
-      fontFamily: 'Inter, Arial, sans-serif',
-      fill: '#1E293B',
-      width: width - (cardPadding * 2),
-      align: 'left',
-      padding: 0
+      fontSize: 18,
+      fill: '#1F2937'
     });
-    elements.push(titleShape);
+    cardElements.push(titleText);
 
     // Content (if provided)
-    if (content && content.trim()) {
-      const contentPos = contentPositions[elementIndex++];
-      const contentShape = await this.canvas.addShape({
-        type: SHAPE_TYPES.TEXT,
-        x: contentPos.x,
-        y: contentPos.y,
+    if (content) {
+      const contentText = await this.createShape({
+        shapeType: SHAPE_TYPES.TEXT,
+        x: x + 20,
+        y: y + 60,
         text: content,
-        fontSize: 15,
-        fontFamily: 'Inter, Arial, sans-serif',
-        fill: '#64748B',
-        width: width - (cardPadding * 2),
-        align: 'left',
-        padding: 0
+        fontSize: 14,
+        fill: '#6B7280'
       });
-      elements.push(contentShape);
+      cardElements.push(contentText);
+    }
+    
+    console.log('✅ Created card layout with title:', title);
+    return cardElements;
+  }
+
+  /**
+   * DELETE SHAPE - Utility function
+   */
+  async deleteShape(shapeId) {
+    const shape = this.canvas.shapes?.find(s => s.id === shapeId);
+    if (!shape) {
+      throw new Error(`Shape not found: ${shapeId}`);
     }
 
-    // Create card group
-    const cardGroup = createShapeGroup(
-      `card-${Date.now()}`,
-      elements,
-      'card'
-    );
-
-    return {
-      success: true,
-      elements: elements.map(el => el.id),
-      group: cardGroup,
-      message: `Created card layout "${title}" with ${elements.length} elements at (${cardPosition.x}, ${cardPosition.y})`
-    };
+    await this.canvas.deleteShape(shapeId);
+    console.log('✅ Deleted shape:', shapeId);
+    return { shapeId, deleted: true };
   }
 }
 

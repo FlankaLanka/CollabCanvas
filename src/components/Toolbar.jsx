@@ -68,8 +68,8 @@ function Toolbar() {
     
     addShape({
       type: SHAPE_TYPES.CIRCLE,
-      x: center.x - defaults.radiusX, // Center the shape (x,y is center for ellipses in Konva)
-      y: center.y - defaults.radiusY,
+      x: center.x, // Circle is now center-positioned (no offset needed)
+      y: center.y,
       radiusX: defaults.radiusX,
       radiusY: defaults.radiusY,
       fill: defaults.fill

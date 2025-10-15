@@ -15,48 +15,242 @@ const pixelsToCm = (pixels) => (pixels / PIXELS_PER_CM).toFixed(2);
 const cmToPixels = (cm) => cm * PIXELS_PER_CM;
 
 // Helper Components
-const VectorInput = ({ label, x, y, onXChange, onYChange, unit = "", precision = 2 }) => (
-  <div className="mb-2">
-    <label className="block text-xs font-medium text-gray-700 mb-1">{label}</label>
-    <div className="grid grid-cols-2 gap-1">
-      <div>
-        <input
-          type="number"
-          value={parseFloat(x).toFixed(precision)}
-          onChange={(e) => onXChange(parseFloat(e.target.value) || 0)}
-          className="w-full px-2 py-1 text-xs text-gray-900 bg-white border border-gray-300 rounded focus:outline-none focus:border-blue-500"
-          step={0.01}
-        />
-      </div>
-      <div>
-        <input
-          type="number"
-          value={parseFloat(y).toFixed(precision)}
-          onChange={(e) => onYChange(parseFloat(e.target.value) || 0)}
-          className="w-full px-2 py-1 text-xs text-gray-900 bg-white border border-gray-300 rounded focus:outline-none focus:border-blue-500"
-          step={0.01}
-        />
-      </div>
-    </div>
-  </div>
-);
+const VectorInput = ({ label, x, y, onXChange, onYChange, unit = "", precision = 2, xLabel = "X", yLabel = "Y" }) => {
+  const [localX, setLocalX] = useState(x);
+  const [localY, setLocalY] = useState(y);
+  const [isFocusedX, setIsFocusedX] = useState(false);
+  const [isFocusedY, setIsFocusedY] = useState(false);
 
-const ScalarInput = ({ label, value, onChange, unit = "", min, max, step = 0.1, precision = 1 }) => (
-  <div className="mb-2">
-    <label className="block text-xs font-medium text-gray-700 mb-1">{label}</label>
-    <div>
-      <input
-        type="number"
-        value={parseFloat(value).toFixed(precision)}
-        onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
-        className="w-full px-2 py-1 text-xs text-gray-900 bg-white border border-gray-300 rounded focus:outline-none focus:border-blue-500"
-        min={min}
-        max={max}
-        step={step}
-      />
+  // Update local state when props change, but only if not currently focused
+  useEffect(() => {
+    if (!isFocusedX) setLocalX(x);
+  }, [x, isFocusedX]);
+
+  useEffect(() => {
+    if (!isFocusedY) setLocalY(y);
+  }, [y, isFocusedY]);
+
+  const handleXBlur = (e) => {
+    setIsFocusedX(false);
+    const value = parseFloat(e.target.value);
+    if (!isNaN(value)) {
+      onXChange(value);
+    } else {
+      setLocalX(x); // Reset to original value if invalid
+    }
+  };
+
+  const handleYBlur = (e) => {
+    setIsFocusedY(false);
+    const value = parseFloat(e.target.value);
+    if (!isNaN(value)) {
+      onYChange(value);
+    } else {
+      setLocalY(y); // Reset to original value if invalid
+    }
+  };
+
+  return (
+    <div className="mb-2">
+      <label className="block text-xs font-medium text-gray-700 mb-1">{label}</label>
+      <div className="grid grid-cols-2 gap-1">
+        <div>
+          <input
+            type="number"
+            value={isFocusedX ? localX : parseFloat(x).toFixed(precision)}
+            onChange={(e) => setLocalX(e.target.value)}
+            onFocus={() => setIsFocusedX(true)}
+            onBlur={handleXBlur}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.target.blur();
+              }
+            }}
+            className="w-full px-2 py-1 text-xs text-gray-900 bg-white border border-gray-300 rounded focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+            step={0.01}
+            placeholder={xLabel}
+          />
+        </div>
+        <div>
+          <input
+            type="number"
+            value={isFocusedY ? localY : parseFloat(y).toFixed(precision)}
+            onChange={(e) => setLocalY(e.target.value)}
+            onFocus={() => setIsFocusedY(true)}
+            onBlur={handleYBlur}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.target.blur();
+              }
+            }}
+            className="w-full px-2 py-1 text-xs text-gray-900 bg-white border border-gray-300 rounded focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+            step={0.01}
+            placeholder={yLabel}
+          />
+        </div>
+      </div>
     </div>
-  </div>
-);
+  );
+};
+
+const PositionInput = ({ label, x, y, z, onXChange, onYChange, onZChange, precision = 2 }) => {
+  const [localX, setLocalX] = useState(x);
+  const [localY, setLocalY] = useState(y);
+  const [localZ, setLocalZ] = useState(z);
+  const [isFocusedX, setIsFocusedX] = useState(false);
+  const [isFocusedY, setIsFocusedY] = useState(false);
+  const [isFocusedZ, setIsFocusedZ] = useState(false);
+
+  // Update local state when props change, but only if not currently focused
+  useEffect(() => {
+    if (!isFocusedX) setLocalX(x);
+  }, [x, isFocusedX]);
+
+  useEffect(() => {
+    if (!isFocusedY) setLocalY(y);
+  }, [y, isFocusedY]);
+
+  useEffect(() => {
+    if (!isFocusedZ) setLocalZ(z);
+  }, [z, isFocusedZ]);
+
+  const handleXBlur = (e) => {
+    setIsFocusedX(false);
+    const value = parseFloat(e.target.value);
+    if (!isNaN(value)) {
+      onXChange(value);
+    } else {
+      setLocalX(x); // Reset to original value if invalid
+    }
+  };
+
+  const handleYBlur = (e) => {
+    setIsFocusedY(false);
+    const value = parseFloat(e.target.value);
+    if (!isNaN(value)) {
+      onYChange(value);
+    } else {
+      setLocalY(y); // Reset to original value if invalid
+    }
+  };
+
+  const handleZBlur = (e) => {
+    setIsFocusedZ(false);
+    const value = parseInt(e.target.value);
+    if (!isNaN(value)) {
+      onZChange(value);
+    } else {
+      setLocalZ(z); // Reset to original value if invalid
+    }
+  };
+
+  return (
+    <div className="mb-2">
+      <label className="block text-xs font-medium text-gray-700 mb-1">{label}</label>
+      <div className="grid grid-cols-3 gap-1">
+        <div>
+          <label className="block text-xs text-gray-500 mb-0.5">X</label>
+          <input
+            type="number"
+            value={isFocusedX ? localX : parseFloat(x).toFixed(precision)}
+            onChange={(e) => setLocalX(e.target.value)}
+            onFocus={() => setIsFocusedX(true)}
+            onBlur={handleXBlur}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.target.blur();
+              }
+            }}
+            className="w-full px-2 py-1 text-xs text-gray-900 bg-white border border-gray-300 rounded focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+            step={0.01}
+          />
+        </div>
+        <div>
+          <label className="block text-xs text-gray-500 mb-0.5">Y</label>
+          <input
+            type="number"
+            value={isFocusedY ? localY : parseFloat(y).toFixed(precision)}
+            onChange={(e) => setLocalY(e.target.value)}
+            onFocus={() => setIsFocusedY(true)}
+            onBlur={handleYBlur}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.target.blur();
+              }
+            }}
+            className="w-full px-2 py-1 text-xs text-gray-900 bg-white border border-gray-300 rounded focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+            step={0.01}
+          />
+        </div>
+        <div>
+          <label className="block text-xs text-gray-500 mb-0.5">Z</label>
+          <input
+            type="number"
+            value={isFocusedZ ? localZ : z}
+            onChange={(e) => setLocalZ(e.target.value)}
+            onFocus={() => setIsFocusedZ(true)}
+            onBlur={handleZBlur}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.target.blur();
+              }
+            }}
+            className="w-full px-2 py-1 text-xs text-gray-900 bg-white border border-gray-300 rounded focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+            step={1}
+          />
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const ScalarInput = ({ label, value, onChange, unit = "", min, max, step = 0.1, precision = 1 }) => {
+  const [localValue, setLocalValue] = useState(value);
+  const [isFocused, setIsFocused] = useState(false);
+
+  // Update local state when props change, but only if not currently focused
+  useEffect(() => {
+    if (!isFocused) setLocalValue(value);
+  }, [value, isFocused]);
+
+  const handleBlur = (e) => {
+    setIsFocused(false);
+    const numValue = parseFloat(e.target.value);
+    if (!isNaN(numValue)) {
+      // Apply min/max constraints if provided
+      let constrainedValue = numValue;
+      if (min !== undefined && numValue < min) constrainedValue = min;
+      if (max !== undefined && numValue > max) constrainedValue = max;
+      onChange(constrainedValue);
+    } else {
+      setLocalValue(value); // Reset to original value if invalid
+    }
+  };
+
+  return (
+    <div className="mb-2">
+      <label className="block text-xs font-medium text-gray-700 mb-1">{label}</label>
+      <div>
+        <input
+          type="number"
+          value={isFocused ? localValue : parseFloat(value).toFixed(precision)}
+          onChange={(e) => setLocalValue(e.target.value)}
+          onFocus={() => setIsFocused(true)}
+          onBlur={handleBlur}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.target.blur();
+            }
+          }}
+          className="w-full px-2 py-1 text-xs text-gray-900 bg-white border border-gray-300 rounded focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+          min={min}
+          max={max}
+          step={step}
+        />
+      </div>
+    </div>
+  );
+};
 
 const ColorPicker = ({ color, onChange }) => {
   const [localColor, setLocalColor] = useState(color);
@@ -151,13 +345,53 @@ const ColorPicker = ({ color, onChange }) => {
   );
 };
 
+const TextInput = ({ label, value, onChange, isTextArea = false, placeholder = "", rows = 3 }) => {
+  const [localValue, setLocalValue] = useState(value);
+  const [isFocused, setIsFocused] = useState(false);
+
+  // Update local state when props change, but only if not currently focused
+  useEffect(() => {
+    if (!isFocused) setLocalValue(value);
+  }, [value, isFocused]);
+
+  const handleBlur = (e) => {
+    setIsFocused(false);
+    const textValue = e.target.value;
+    onChange(textValue);
+  };
+
+  const InputComponent = isTextArea ? 'textarea' : 'input';
+  const extraProps = isTextArea ? { rows } : { type: 'text' };
+
+  return (
+    <div className="mb-3">
+      <label className="block text-xs font-medium text-gray-400 mb-2">{label}</label>
+      <InputComponent
+        {...extraProps}
+        value={localValue}
+        onChange={(e) => setLocalValue(e.target.value)}
+        onFocus={() => setIsFocused(true)}
+        onBlur={handleBlur}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && !isTextArea) {
+            e.target.blur();
+          }
+        }}
+        placeholder={placeholder}
+        className={`w-full px-3 py-2 text-xs bg-white border border-gray-300 rounded focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-gray-900 ${isTextArea ? 'resize-none' : ''}`}
+      />
+    </div>
+  );
+};
+
 function PropertiesPanel() {
   const { 
     getSelectedShape, 
     getSelectedShapes, 
     updateShape, 
     selectedId, 
-    selectedIds 
+    selectedIds,
+    setShapeZIndex
   } = useCanvas();
   
   const selectedShape = getSelectedShape(); // Primary selected shape
@@ -186,22 +420,87 @@ function PropertiesPanel() {
         triangleScale = calculateTriangleScale(selectedShape.points);
       }
 
+      // Get actual dimensions for scale display
+      let scaleWidth = 0;
+      let scaleHeight = 0;
+      
+      switch (selectedShape.type) {
+        case SHAPE_TYPES.RECTANGLE:
+          scaleWidth = selectedShape.width || 100;
+          scaleHeight = selectedShape.height || 100;
+          break;
+        case SHAPE_TYPES.CIRCLE:
+          scaleWidth = (selectedShape.radiusX || 50) * 2; // Diameter for width
+          scaleHeight = (selectedShape.radiusY || 50) * 2; // Diameter for height
+          break;
+        case SHAPE_TYPES.TRIANGLE:
+          // Calculate triangle dimensions from original points and current scale
+          const originalPoints = DEFAULT_SHAPE_PROPS[SHAPE_TYPES.TRIANGLE].points;
+          const originalWidth = Math.abs(originalPoints[4] - originalPoints[2]); // 35 - (-35) = 70
+          const originalHeight = Math.abs(originalPoints[1] - originalPoints[3]); // -40 - 30 = 70
+          const currentScaleX = selectedShape.scaleX || 1;
+          const currentScaleY = selectedShape.scaleY || 1;
+          scaleWidth = Math.round(originalWidth * currentScaleX);
+          scaleHeight = Math.round(originalHeight * currentScaleY);
+          break;
+        case SHAPE_TYPES.TEXT:
+        case SHAPE_TYPES.TEXT_INPUT:
+          // Calculate text dimensions from base size and current scale
+          const textDefaults = DEFAULT_SHAPE_PROPS[selectedShape.type];
+          const textBaseWidth = textDefaults.width || 200;
+          // For TEXT: use fontSize * 1.5 as base height, for TEXT_INPUT: use fixed height
+          const textBaseHeight = selectedShape.type === SHAPE_TYPES.TEXT_INPUT ? 
+            (textDefaults.height || 40) : 
+            ((selectedShape.fontSize || textDefaults.fontSize || 20) * 1.5);
+          const textScaleX = selectedShape.scaleX || 1;
+          const textScaleY = selectedShape.scaleY || 1;
+          scaleWidth = Math.round(textBaseWidth * textScaleX);
+          scaleHeight = Math.round(textBaseHeight * textScaleY);
+          break;
+        case SHAPE_TYPES.LINE:
+          // Calculate line dimensions from points bounding box and current scale
+          if (selectedShape.points && selectedShape.points.length >= 4) {
+            const points = selectedShape.points;
+            let minX = points[0], maxX = points[0], minY = points[1], maxY = points[1];
+            for (let i = 0; i < points.length; i += 2) {
+              minX = Math.min(minX, points[i]);
+              maxX = Math.max(maxX, points[i]);
+              minY = Math.min(minY, points[i + 1]);
+              maxY = Math.max(maxY, points[i + 1]);
+            }
+            const lineBaseWidth = Math.abs(maxX - minX) || 100;
+            const lineBaseHeight = Math.abs(maxY - minY) || 100;
+            const lineScaleX = selectedShape.scaleX || 1;
+            const lineScaleY = selectedShape.scaleY || 1;
+            scaleWidth = Math.round(lineBaseWidth * lineScaleX);
+            scaleHeight = Math.round(lineBaseHeight * lineScaleY);
+          } else {
+            scaleWidth = 100;
+            scaleHeight = 100;
+          }
+          break;
+        default:
+          scaleWidth = selectedShape.width || 100;
+          scaleHeight = selectedShape.height || 100;
+      }
+
       setLocalProperties({
-        // Transform properties (in metric units)
-        positionX: pixelsToCm(selectedShape.x || 0),
-        positionY: pixelsToCm(selectedShape.y || 0),
-        scaleX: selectedShape.scaleX || 1,
-        scaleY: selectedShape.scaleY || 1,
+        // Transform properties (direct pixel coordinates)
+        positionX: selectedShape.x || 0,
+        positionY: selectedShape.y || 0,
+        zIndex: selectedShape.zIndex || 0,
+        scaleX: scaleWidth,  // Now represents actual width in pixels
+        scaleY: scaleHeight, // Now represents actual height in pixels
         rotation: selectedShape.rotation || 0,
         
         // Appearance
         fill: selectedShape.fill || '#3B82F6',
         
-        // Size properties (converted to cm)
-        width: pixelsToCm(selectedShape.width || 100),
-        height: pixelsToCm(selectedShape.height || 100),
-        radiusX: pixelsToCm(selectedShape.radiusX || selectedShape.radius || 50),
-        radiusY: pixelsToCm(selectedShape.radiusY || selectedShape.radius || 50),
+        // Size properties (in pixels)
+        width: selectedShape.width || 100,
+        height: selectedShape.height || 100,
+        radiusX: selectedShape.radiusX || selectedShape.radius || 50,
+        radiusY: selectedShape.radiusY || selectedShape.radius || 50,
         
         // Triangle properties
         triangleScale: triangleScale,
@@ -291,7 +590,7 @@ function PropertiesPanel() {
     updateShapeProperty('width', constrainedValue);
   }, [selectedShape, updateShapeProperty]);
 
-  // Handle text content change
+  // Handle text content change (now called onBlur from TextInput)
   const handleTextChange = useCallback((newText) => {
     setLocalProperties(prev => ({ ...prev, text: newText }));
     updateShapeProperty('text', newText);
@@ -316,29 +615,115 @@ function PropertiesPanel() {
     updateShapeProperty('rotation', normalizedRotation);
   }, [updateShapeProperty, selectedShape]);
 
-  // Handle position changes (convert cm to pixels)
-  const handlePositionXChange = useCallback((cmValue) => {
-    const pixelValue = cmToPixels(cmValue);
-    setLocalProperties(prev => ({ ...prev, positionX: cmValue }));
+  // Handle position changes (direct pixel coordinates)
+  const handlePositionXChange = useCallback((pixelValue) => {
+    setLocalProperties(prev => ({ ...prev, positionX: pixelValue }));
     updateShapeProperty('x', pixelValue);
   }, [updateShapeProperty]);
 
-  const handlePositionYChange = useCallback((cmValue) => {
-    const pixelValue = cmToPixels(cmValue);
-    setLocalProperties(prev => ({ ...prev, positionY: cmValue }));
+  const handlePositionYChange = useCallback((pixelValue) => {
+    setLocalProperties(prev => ({ ...prev, positionY: pixelValue }));
     updateShapeProperty('y', pixelValue);
   }, [updateShapeProperty]);
 
-  // Handle scale changes
-  const handleScaleXChange = useCallback((scaleValue) => {
-    setLocalProperties(prev => ({ ...prev, scaleX: scaleValue }));
-    updateShapeProperty('scaleX', scaleValue);
-  }, [updateShapeProperty]);
+  const handlePositionZChange = useCallback((zValue) => {
+    setLocalProperties(prev => ({ ...prev, zIndex: zValue }));
+    setShapeZIndex(selectedShape?.id, zValue);
+  }, [setShapeZIndex, selectedShape]);
 
-  const handleScaleYChange = useCallback((scaleValue) => {
-    setLocalProperties(prev => ({ ...prev, scaleY: scaleValue }));
-    updateShapeProperty('scaleY', scaleValue);
-  }, [updateShapeProperty]);
+  // Handle scale changes (now width/height dimensions)
+  const handleScaleXChange = useCallback((widthValue) => {
+    setLocalProperties(prev => ({ ...prev, scaleX: widthValue }));
+    
+    // Update the appropriate property based on shape type
+    switch (selectedShape?.type) {
+      case SHAPE_TYPES.RECTANGLE:
+        updateShapeProperty('width', widthValue);
+        break;
+      case SHAPE_TYPES.TEXT:
+      case SHAPE_TYPES.TEXT_INPUT:
+        // Convert width to scale factor for text shapes
+        const textWidthDefaults = DEFAULT_SHAPE_PROPS[selectedShape.type];
+        const textBaseWidth = textWidthDefaults.width || 200;
+        const textNewScaleX = widthValue / textBaseWidth;
+        updateShapeProperty('scaleX', textNewScaleX);
+        break;
+      case SHAPE_TYPES.LINE:
+        // Convert width to scale factor for lines based on bounding box
+        if (selectedShape.points && selectedShape.points.length >= 4) {
+          const points = selectedShape.points;
+          let minX = points[0], maxX = points[0];
+          for (let i = 0; i < points.length; i += 2) {
+            minX = Math.min(minX, points[i]);
+            maxX = Math.max(maxX, points[i]);
+          }
+          const lineBaseWidth = Math.abs(maxX - minX) || 100;
+          const lineNewScaleX = widthValue / lineBaseWidth;
+          updateShapeProperty('scaleX', lineNewScaleX);
+        }
+        break;
+      case SHAPE_TYPES.CIRCLE:
+        updateShapeProperty('radiusX', widthValue / 2); // Convert diameter to radius
+        break;
+      case SHAPE_TYPES.TRIANGLE:
+        // Convert width to scale factor for triangles
+        const originalPoints = DEFAULT_SHAPE_PROPS[SHAPE_TYPES.TRIANGLE].points;
+        const originalWidth = Math.abs(originalPoints[4] - originalPoints[2]); // 70px
+        const newScaleX = widthValue / originalWidth;
+        updateShapeProperty('scaleX', newScaleX);
+        break;
+      default:
+        updateShapeProperty('width', widthValue);
+    }
+  }, [updateShapeProperty, selectedShape]);
+
+  const handleScaleYChange = useCallback((heightValue) => {
+    setLocalProperties(prev => ({ ...prev, scaleY: heightValue }));
+    
+    // Update the appropriate property based on shape type
+    switch (selectedShape?.type) {
+      case SHAPE_TYPES.RECTANGLE:
+        updateShapeProperty('height', heightValue);
+        break;
+      case SHAPE_TYPES.TEXT:
+      case SHAPE_TYPES.TEXT_INPUT:
+        // Convert height to scale factor for text shapes
+        const textHeightDefaults = DEFAULT_SHAPE_PROPS[selectedShape.type];
+        // For TEXT: use fontSize * 1.5 as base height, for TEXT_INPUT: use fixed height
+        const textBaseHeight = selectedShape.type === SHAPE_TYPES.TEXT_INPUT ? 
+          (textHeightDefaults.height || 40) : 
+          ((selectedShape.fontSize || textHeightDefaults.fontSize || 20) * 1.5);
+        const textNewScaleY = heightValue / textBaseHeight;
+        updateShapeProperty('scaleY', textNewScaleY);
+        break;
+      case SHAPE_TYPES.LINE:
+        // Convert height to scale factor for lines based on bounding box
+        if (selectedShape.points && selectedShape.points.length >= 4) {
+          const points = selectedShape.points;
+          let minY = points[1], maxY = points[1];
+          for (let i = 1; i < points.length; i += 2) {
+            minY = Math.min(minY, points[i]);
+            maxY = Math.max(maxY, points[i]);
+          }
+          const lineBaseHeight = Math.abs(maxY - minY) || 100;
+          const lineNewScaleY = heightValue / lineBaseHeight;
+          updateShapeProperty('scaleY', lineNewScaleY);
+        }
+        break;
+      case SHAPE_TYPES.CIRCLE:
+        updateShapeProperty('radiusY', heightValue / 2); // Convert diameter to radius
+        break;
+      case SHAPE_TYPES.TRIANGLE:
+        // Convert height to scale factor for triangles
+        const originalPoints = DEFAULT_SHAPE_PROPS[SHAPE_TYPES.TRIANGLE].points;
+        const originalHeight = Math.abs(originalPoints[1] - originalPoints[3]); // 70px
+        const newScaleY = heightValue / originalHeight;
+        updateShapeProperty('scaleY', newScaleY);
+        break;
+      default:
+        updateShapeProperty('height', heightValue);
+    }
+  }, [updateShapeProperty, selectedShape]);
 
 
   // Handle color changes
@@ -385,7 +770,7 @@ function PropertiesPanel() {
           </p>
         </div>
         <div className="text-xs text-gray-500 font-mono">
-          {selectedShape?.id.split('-')[1] || ''}
+          {selectedShape?.id.split('-').slice(-1)[0] || ''}
         </div>
       </div>
 
@@ -398,13 +783,15 @@ function PropertiesPanel() {
           <h4 className="text-sm font-medium text-gray-800">Transform</h4>
         </div>
         
-        <VectorInput
+        <PositionInput
           label="Position"
           x={localProperties.positionX || 0}
           y={localProperties.positionY || 0}
+          z={localProperties.zIndex || 0}
           onXChange={handlePositionXChange}
           onYChange={handlePositionYChange}
-          precision={2}
+          onZChange={handlePositionZChange}
+          precision={0}
         />
 
         <ScalarInput
@@ -418,12 +805,14 @@ function PropertiesPanel() {
         />
 
         <VectorInput
-          label="Scale"
-          x={localProperties.scaleX || 1}
-          y={localProperties.scaleY || 1}
+          label="Size"
+          x={localProperties.scaleX || 100}
+          y={localProperties.scaleY || 100}
           onXChange={handleScaleXChange}
           onYChange={handleScaleYChange}
-          precision={3}
+          precision={0}
+          xLabel="W"
+          yLabel="H"
         />
       </div>
 
@@ -438,26 +827,14 @@ function PropertiesPanel() {
             <h4 className="text-sm font-medium text-gray-200">Text</h4>
           </div>
 
-          <div className="mb-3">
-            <label className="block text-xs font-medium text-gray-400 mb-2">Content</label>
-            {selectedShape?.type === SHAPE_TYPES.TEXT ? (
-              <textarea
-                value={localProperties.text || ''}
-                onChange={(e) => handleTextChange(e.target.value)}
-                placeholder="Enter text content..."
-                className="w-full px-3 py-2 text-xs bg-gray-800 border border-gray-600 rounded focus:outline-none focus:border-blue-500 focus:bg-gray-750 text-gray-100 resize-none"
-                rows={3}
-              />
-            ) : (
-              <input
-                type="text"
-                value={localProperties.text || ''}
-                onChange={(e) => handleTextChange(e.target.value)}
-                placeholder="Enter input field text..."
-                className="w-full px-3 py-2 text-xs bg-gray-800 border border-gray-600 rounded focus:outline-none focus:border-blue-500 focus:bg-gray-750 text-gray-100"
-              />
-            )}
-          </div>
+          <TextInput
+            label="Content"
+            value={localProperties.text || ''}
+            onChange={handleTextChange}
+            isTextArea={selectedShape?.type === SHAPE_TYPES.TEXT}
+            placeholder={selectedShape?.type === SHAPE_TYPES.TEXT ? "Enter text content..." : "Enter input field text..."}
+            rows={3}
+          />
 
           <ScalarInput
             label="Font Size"
@@ -526,7 +903,7 @@ function PropertiesPanel() {
         <div className="text-xs text-gray-500 space-y-1 font-mono">
           <div className="flex justify-between">
             <span>ID:</span>
-            <span className="text-gray-400">{selectedShape?.id.split('-')[1] || 'N/A'}</span>
+            <span className="text-gray-400">{selectedShape?.id.split('-').slice(-1)[0] || 'N/A'}</span>
           </div>
           <div className="flex justify-between">
             <span>Type:</span>
