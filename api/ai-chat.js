@@ -2,7 +2,7 @@ import OpenAI from 'openai';
 
 // Initialize OpenAI client server-side
 const openai = new OpenAI({
-  apiKey: process.env.VITE_OPENAI_API_KEY,
+  apiKey: process.env.OPENAI_API_KEY || process.env.VITE_OPENAI_API_KEY,
 });
 
 export default async function handler(req, res) {
@@ -16,9 +16,22 @@ export default async function handler(req, res) {
     return res.status(200).end();
   }
 
+  // Debug logging
+  console.log('API Route Called:', {
+    method: req.method,
+    hasApiKey: !!(process.env.OPENAI_API_KEY || process.env.VITE_OPENAI_API_KEY),
+    bodyKeys: req.body ? Object.keys(req.body) : 'no body'
+  });
+
   // Only allow POST requests
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  // Check API key
+  const apiKey = process.env.OPENAI_API_KEY || process.env.VITE_OPENAI_API_KEY;
+  if (!apiKey) {
+    return res.status(500).json({ error: 'OpenAI API key not configured' });
   }
 
   try {

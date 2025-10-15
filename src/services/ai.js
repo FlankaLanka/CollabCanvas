@@ -11,24 +11,45 @@ const AI_API_ENDPOINT = '/api/ai-chat';
 
 // Helper function to make requests to our backend AI API
 async function makeAIRequest(messages, functions = null, function_call = null) {
-  const response = await fetch(AI_API_ENDPOINT, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      messages,
-      functions,
-      function_call
-    })
-  });
+  try {
+    console.log('🤖 Making AI request to:', AI_API_ENDPOINT);
+    
+    const response = await fetch(AI_API_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        messages,
+        functions,
+        function_call
+      })
+    });
 
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: 'Unknown error' }));
-    throw new Error(error.error || `HTTP ${response.status}`);
+    console.log('📡 AI API response status:', response.status, response.statusText);
+
+    if (!response.ok) {
+      let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+      
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.error || errorMessage;
+        console.error('❌ AI API error details:', errorData);
+      } catch (e) {
+        console.error('❌ Could not parse error response:', e);
+      }
+
+      throw new Error(errorMessage);
+    }
+
+    const result = await response.json();
+    console.log('✅ AI API success');
+    return result;
+
+  } catch (error) {
+    console.error('❌ AI API request failed:', error);
+    throw error;
   }
-
-  return await response.json();
 }
 
 // AI function schema for canvas operations
