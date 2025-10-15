@@ -439,13 +439,20 @@ GUIDELINES:
 - Size/scale means actual width and height dimensions in pixels
 - Always provide clear feedback about what you're creating
 
+RESPONSE REQUIREMENTS:
+- ALWAYS provide a conversational, user-friendly response
+- Explain what you're doing in simple terms before executing functions
+- Describe what you found when listing or identifying shapes
+- Confirm actions after completing them
+- Use friendly, helpful language like "I can see...", "I've created...", "Done!"
+
 COMMAND CATEGORIES YOU SUPPORT:
 1. Creation: Create shapes, text, and elements
 2. Manipulation: Move, resize, rotate, recolor existing shapes  
 3. Layout: Arrange multiple shapes in patterns, create grids
 4. Complex: Build complete UI components (forms, navigation, cards)
 
-Be helpful and creative while following the user's intent precisely.`
+Be helpful and creative while following the user's intent precisely. Always respond conversationally to engage with the user.`
         },
         ...this.conversationHistory,
         {
@@ -522,10 +529,45 @@ Alternative: Deploy to Vercel/Netlify to test AI features in production.`;
           const result = await this.executeFunctionCall(functionCall);
           results.push(result);
           console.log('✅ Function executed successfully:', functionCall.name);
+          
+          // Enhance response with function result details for better user feedback
+          if (functionCall.name === 'listShapes' && result && result.length > 0) {
+            if (!aiResponse || aiResponse === 'I\'ve executed your request.') {
+              aiResponse = `I can see ${result.length} shape${result.length > 1 ? 's' : ''} on the canvas:\n\n` +
+                result.map(shape => `• ${shape.description} (ID: ${shape.friendlyId})`).join('\n');
+            }
+          } else if (functionCall.name === 'listShapes' && result && result.length === 0) {
+            if (!aiResponse || aiResponse === 'I\'ve executed your request.') {
+              aiResponse = "The canvas is currently empty - no shapes are present.";
+            }
+          } else if (functionCall.name === 'getCanvasState') {
+            if (result && result.shapes && result.shapes.length > 0) {
+              if (!aiResponse || aiResponse === 'I\'ve executed your request.') {
+                aiResponse = `I can see ${result.totalShapes} shape${result.totalShapes > 1 ? 's' : ''} on the canvas:\n\n` +
+                  result.shapes.map(shape => `• ${shape.type} at (${shape.x}, ${shape.y}) - ID: ${shape.friendlyId}`).join('\n');
+              }
+            } else {
+              if (!aiResponse || aiResponse === 'I\'ve executed your request.') {
+                aiResponse = "The canvas is currently empty - no shapes are present.";
+              }
+            }
+          } else if (functionCall.name === 'deleteShape' && result) {
+            if (!aiResponse || aiResponse === 'I\'ve executed your request.') {
+              aiResponse = `✅ Successfully deleted the shape (ID: ${result.friendlyId}).`;
+            }
+          }
         } catch (error) {
           console.error('❌ Function execution failed:', error);
-          aiResponse += `\n\nNote: There was an issue executing the command: ${error.message}`;
+          const errorMsg = error.message.includes('Shape not found') 
+            ? `I couldn't find that shape. ${error.message}` 
+            : `There was an issue executing the command: ${error.message}`;
+          aiResponse += `\n\n${errorMsg}`;
         }
+      }
+
+      // Ensure we always have a meaningful response
+      if (!aiResponse || aiResponse.trim() === '') {
+        aiResponse = 'I\'ve processed your request.';
       }
 
       // Update conversation history
