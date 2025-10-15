@@ -441,11 +441,12 @@ GUIDELINES:
 - Always provide clear feedback about what you're creating
 
 RESPONSE REQUIREMENTS:
-- ALWAYS provide a conversational, user-friendly response
-- Explain what you're doing in simple terms before executing functions
-- Describe what you found when listing or identifying shapes
-- Confirm actions after completing them
-- Use friendly, helpful language like "I can see...", "I've created...", "Done!"
+- CRITICAL: Always respond conversationally, never with technical function details
+- Use natural, friendly language like "I can see...", "Perfect! I've moved...", "Done!"
+- Describe results in terms the user understands (colors, shapes, positions)
+- Confirm what you accomplished, not what function you called
+- Be enthusiastic and helpful with phrases like "Great!", "Perfect!", "Excellent!"
+- NEVER mention function names, IDs, or technical implementation details
 
 COMMAND CATEGORIES YOU SUPPORT:
 1. Creation: Create shapes, text, and elements
@@ -532,29 +533,115 @@ Alternative: Deploy to Vercel/Netlify to test AI features in production.`;
           console.log('✅ Function executed successfully:', functionCall.name);
           
           // Enhance response with function result details for better user feedback
-          if (functionCall.name === 'listShapes' && result && result.length > 0) {
-            if (!aiResponse || aiResponse === 'I\'ve executed your request.') {
-              aiResponse = `I can see ${result.length} shape${result.length > 1 ? 's' : ''} on the canvas:\n\n` +
-                result.map(shape => `• ${shape.description} (ID: ${shape.friendlyId})`).join('\n');
-            }
-          } else if (functionCall.name === 'listShapes' && result && result.length === 0) {
-            if (!aiResponse || aiResponse === 'I\'ve executed your request.') {
-              aiResponse = "The canvas is currently empty - no shapes are present.";
-            }
-          } else if (functionCall.name === 'getCanvasState') {
-            if (result && result.shapes && result.shapes.length > 0) {
-              if (!aiResponse || aiResponse === 'I\'ve executed your request.') {
-                aiResponse = `I can see ${result.totalShapes} shape${result.totalShapes > 1 ? 's' : ''} on the canvas:\n\n` +
-                  result.shapes.map(shape => `• ${shape.type} at (${shape.x}, ${shape.y}) - ID: ${shape.friendlyId}`).join('\n');
-              }
-            } else {
-              if (!aiResponse || aiResponse === 'I\'ve executed your request.') {
-                aiResponse = "The canvas is currently empty - no shapes are present.";
-              }
-            }
-          } else if (functionCall.name === 'deleteShape' && result) {
-            if (!aiResponse || aiResponse === 'I\'ve executed your request.') {
-              aiResponse = `✅ Successfully deleted the ${result.description}.`;
+          // Always provide conversational responses instead of technical logs
+          // Override any response to ensure consistent user-friendly messaging
+          {
+            switch (functionCall.name) {
+              case 'listShapes':
+                if (result && result.length > 0) {
+                  aiResponse = `I can see ${result.length} shape${result.length > 1 ? 's' : ''} on the canvas:\n\n` +
+                    result.map(shape => `• ${shape.description}`).join('\n');
+                } else {
+                  aiResponse = "The canvas is currently empty - no shapes are present.";
+                }
+                break;
+                
+              case 'getCanvasState':
+                if (result && result.shapes && result.shapes.length > 0) {
+                  aiResponse = `I can see ${result.totalShapes} shape${result.totalShapes > 1 ? 's' : ''} on the canvas:\n\n` +
+                    result.shapes.map(shape => `• ${this.getShapeDescription(shape)} at (${shape.x}, ${shape.y})`).join('\n');
+                } else {
+                  aiResponse = "The canvas is currently empty - no shapes are present.";
+                }
+                break;
+                
+              case 'deleteShape':
+                if (result && result.description) {
+                  aiResponse = `✅ Done! I've deleted the ${result.description}.`;
+                } else {
+                  aiResponse = `✅ Done! I've deleted the shape.`;
+                }
+                break;
+                
+              case 'moveShape':
+                if (result && result.description) {
+                  aiResponse = `✅ Perfect! I've moved the ${result.description} to position (${result.x}, ${result.y}).`;
+                } else {
+                  aiResponse = `✅ Done! I've moved the shape to the new position.`;
+                }
+                break;
+                
+              case 'resizeShape':
+                if (result && result.description) {
+                  const sizeInfo = result.width ? `${result.width}×${result.height}px` : 
+                                  result.radiusX ? `${result.radiusX * 2}px diameter` : 'new size';
+                  aiResponse = `✅ Perfect! I've resized the ${result.description} to ${sizeInfo}.`;
+                } else {
+                  aiResponse = `✅ Done! I've resized the shape.`;
+                }
+                break;
+                
+              case 'rotateShape':
+                if (result && result.description) {
+                  aiResponse = `✅ Great! I've rotated the ${result.description} to ${result.rotation}°.`;
+                } else {
+                  aiResponse = `✅ Done! I've rotated the shape.`;
+                }
+                break;
+                
+              case 'changeShapeColor':
+                if (result && result.description && result.fill) {
+                  const colorName = this.getColorName(result.fill);
+                  const colorText = colorName ? colorName : result.fill;
+                  aiResponse = `✅ Excellent! I've changed the shape's color to ${colorText}.`;
+                } else {
+                  aiResponse = `✅ Done! I've changed the shape's color.`;
+                }
+                break;
+                
+              case 'createShape':
+                if (result && result.type) {
+                  const shapeDesc = this.getShapeDescription(result);
+                  aiResponse = `✅ Created! I've added a ${shapeDesc} to the canvas.`;
+                } else {
+                  aiResponse = `✅ Done! I've created the shape.`;
+                }
+                break;
+                
+              case 'createMultipleShapes':
+                if (result && result.shapes) {
+                  aiResponse = `✅ Awesome! I've created ${result.shapes.length} ${result.shapeType}s arranged in a ${result.arrangement}.`;
+                } else {
+                  aiResponse = `✅ Done! I've created multiple shapes for you.`;
+                }
+                break;
+                
+              case 'createLoginForm':
+                if (result && result.components) {
+                  aiResponse = `✅ Perfect! I've created a login form with ${result.components.length} components (username field, password field, and login button).`;
+                } else {
+                  aiResponse = `✅ Done! I've created a login form for you.`;
+                }
+                break;
+                
+              case 'createNavigationBar':
+                if (result && result.components) {
+                  aiResponse = `✅ Great! I've created a navigation bar with ${result.components.length} menu items.`;
+                } else {
+                  aiResponse = `✅ Done! I've created a navigation bar for you.`;
+                }
+                break;
+                
+              case 'createCardLayout':
+                if (result && result.components) {
+                  aiResponse = `✅ Excellent! I've created a card layout with title and content areas.`;
+                } else {
+                  aiResponse = `✅ Done! I've created a card layout for you.`;
+                }
+                break;
+                
+              default:
+                aiResponse = `✅ Done! I've completed your request.`;
             }
           }
         } catch (error) {
@@ -566,9 +653,14 @@ Alternative: Deploy to Vercel/Netlify to test AI features in production.`;
         }
       }
 
-      // Ensure we always have a meaningful response
+      // Ensure we always have a meaningful, conversational response
       if (!aiResponse || aiResponse.trim() === '') {
-        aiResponse = 'I\'ve processed your request.';
+        aiResponse = '✅ Done! I\'ve completed your request.';
+      }
+      
+      // Additional check to avoid technical responses
+      if (aiResponse.includes('function') || aiResponse.includes('executed') || aiResponse.includes('called')) {
+        aiResponse = '✅ Perfect! I\'ve completed what you asked for.';
       }
 
       // Update conversation history
@@ -669,6 +761,64 @@ Alternative: Deploy to Vercel/Netlify to test AI features in production.`;
       default:
         throw new Error(`Unknown function: ${name}`);
     }
+  }
+
+  /**
+   * Get human-readable description of a shape
+   */
+  getShapeDescription(shape) {
+    const colorName = this.getColorName(shape.fill);
+    const colorPrefix = colorName ? `${colorName} ` : '';
+    
+    switch (shape.type) {
+      case 'rectangle':
+        const width = shape.width || 100;
+        const height = shape.height || 100;
+        const rectType = Math.abs(width - height) < 20 ? 'square' : 'rectangle';
+        return `${colorPrefix}${width}×${height}px ${rectType}`;
+      case 'circle':
+        const radiusX = shape.radiusX || 50;
+        const radiusY = shape.radiusY || 50;
+        const shapeType = Math.abs(radiusX - radiusY) < 5 ? 'circle' : 'oval';
+        return radiusX === radiusY ? 
+          `${colorPrefix}${radiusX * 2}px ${shapeType}` : 
+          `${colorPrefix}${radiusX * 2}×${radiusY * 2}px ${shapeType}`;
+      case 'text':
+        return `${colorPrefix}text "${shape.text || 'Text'}"`;
+      case 'text_input':
+        return `${colorPrefix}input field "${shape.text || 'Input Field'}"`;
+      case 'line':
+        return `${colorPrefix}drawn line`;
+      case 'triangle':
+        return `${colorPrefix}triangle`;
+      default:
+        return `${colorPrefix}${shape.type} shape`;
+    }
+  }
+
+  /**
+   * Get color name from hex value
+   */
+  getColorName(hexColor) {
+    if (!hexColor) return '';
+    
+    const color = hexColor.toLowerCase();
+    
+    // Common color mappings
+    const colorNames = {
+      '#3b82f6': 'blue', '#2563eb': 'blue', '#1d4ed8': 'blue', '#1e40af': 'blue',
+      '#ef4444': 'red', '#dc2626': 'red', '#b91c1c': 'red', '#991b1b': 'red',
+      '#10b981': 'green', '#059669': 'green', '#047857': 'green', '#065f46': 'green',
+      '#eab308': 'yellow', '#ca8a04': 'yellow', '#a16207': 'yellow', '#854d0e': 'yellow',
+      '#8b5cf6': 'purple', '#7c3aed': 'purple', '#6d28d9': 'purple', '#5b21b6': 'purple',
+      '#ec4899': 'pink', '#db2777': 'pink', '#be185d': 'pink', '#9d174d': 'pink',
+      '#f97316': 'orange', '#ea580c': 'orange', '#c2410c': 'orange', '#9a3412': 'orange',
+      '#6b7280': 'gray', '#4b5563': 'gray', '#374151': 'gray', '#1f2937': 'gray',
+      '#000000': 'black', '#111827': 'black', '#030712': 'black',
+      '#ffffff': 'white', '#f9fafb': 'white', '#f3f4f6': 'white', '#e5e7eb': 'white'
+    };
+    
+    return colorNames[color] || '';
   }
 
   /**
