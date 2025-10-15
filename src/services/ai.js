@@ -79,20 +79,20 @@ const AI_FUNCTIONS = [
   // MANIPULATION COMMANDS
   {
     name: 'moveShape',
-    description: 'Move an existing shape to a new position (supports friendly IDs)',
+    description: 'Move an existing shape to a new position using natural language description',
     parameters: {
       type: 'object',
       properties: {
         shapeId: {
           type: 'string',
-          description: 'Full shape ID or friendly ID (like "abc123") of the shape to move'
+          description: 'Natural language description of the shape (e.g., "blue rectangle", "red circle", "large triangle")'
         },
         x: {
           type: 'number',
           description: 'New X position'
         },
         y: {
-          type: 'number', 
+          type: 'number',
           description: 'New Y position'
         }
       },
@@ -102,13 +102,13 @@ const AI_FUNCTIONS = [
 
   {
     name: 'resizeShape',
-    description: 'Resize an existing shape (supports friendly IDs)',
+    description: 'Resize an existing shape using natural language description',
     parameters: {
       type: 'object',
       properties: {
         shapeId: {
           type: 'string',
-          description: 'Full shape ID or friendly ID (like "abc123") of the shape to resize'
+          description: 'Natural language description of the shape (e.g., "blue rectangle", "red circle", "large triangle")'
         },
         width: {
           type: 'number',
@@ -137,13 +137,13 @@ const AI_FUNCTIONS = [
 
   {
     name: 'rotateShape',
-    description: 'Rotate an existing shape (supports friendly IDs)',
+    description: 'Rotate an existing shape using natural language description',
     parameters: {
       type: 'object',
       properties: {
         shapeId: {
           type: 'string',
-          description: 'Full shape ID or friendly ID (like "abc123") of the shape to rotate'
+          description: 'Natural language description of the shape (e.g., "blue rectangle", "red circle", "large triangle")'
         },
         degrees: {
           type: 'number',
@@ -156,13 +156,13 @@ const AI_FUNCTIONS = [
 
   {
     name: 'changeShapeColor',
-    description: 'Change the color of an existing shape (supports friendly IDs)',
+    description: 'Change the color of an existing shape using natural language description',
     parameters: {
       type: 'object',
       properties: {
         shapeId: {
           type: 'string',
-          description: 'Full shape ID or friendly ID (like "abc123") of the shape to recolor'
+          description: 'Natural language description of the shape (e.g., "blue rectangle", "red circle", "large triangle")'
         },
         color: {
           type: 'string',
@@ -373,13 +373,13 @@ const AI_FUNCTIONS = [
 
   {
     name: 'deleteShape',
-    description: 'Delete an existing shape from the canvas (supports friendly IDs)',
+    description: 'Delete an existing shape from the canvas using natural language description',
     parameters: {
       type: 'object',
       properties: {
         shapeId: {
           type: 'string',
-          description: 'Full shape ID or friendly ID (visible in inspector) of the shape to delete'
+          description: 'Natural language description of the shape (e.g., "blue rectangle", "red circle", "large triangle")'
         }
       },
       required: ['shapeId']
@@ -421,11 +421,12 @@ CURRENT CANVAS STATE:
 ${JSON.stringify(this.canvasAPI.getCanvasState(), null, 2)}
 
 SHAPE IDENTIFICATION SYSTEM:
-- Each shape has a unique ID and a friendly ID (short code like "abc123")
-- Use listShapes() to see all shapes with descriptions and friendly IDs
-- Use identifyShape(id) to find specific shapes by full or friendly ID
-- When manipulating existing shapes, always use their ID (friendly ID works too)
-- Example: "move shape abc123 to position 200, 300" or "resize the blue rectangle"
+- Identify shapes by natural language descriptions like "blue rectangle", "red circle", "large triangle"
+- Use color, type, size, and text content to identify shapes
+- Supported colors: blue, red, green, yellow, purple, pink, orange, gray, black, white
+- Supported types: rectangle, circle, triangle, text, input field, line
+- Size descriptors: large/big, small/tiny
+- Examples: "delete the blue rectangle", "move the red circle to 200, 300", "resize the large triangle"
 
 GUIDELINES:
 - ALWAYS use listShapes() first if user asks about existing shapes
@@ -553,7 +554,7 @@ Alternative: Deploy to Vercel/Netlify to test AI features in production.`;
             }
           } else if (functionCall.name === 'deleteShape' && result) {
             if (!aiResponse || aiResponse === 'I\'ve executed your request.') {
-              aiResponse = `✅ Successfully deleted the shape (ID: ${result.friendlyId}).`;
+              aiResponse = `✅ Successfully deleted the ${result.description}.`;
             }
           }
         } catch (error) {

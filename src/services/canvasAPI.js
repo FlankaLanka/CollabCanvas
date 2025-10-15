@@ -71,7 +71,172 @@ export class CanvasAPI {
   }
 
   /**
-   * Find shape by friendly ID or full ID
+   * Find shape by natural language description (e.g., "blue rectangle", "red circle")
+   */
+  findShapeByDescription(description) {
+    const shapes = this.getCurrentShapes();
+    const desc = description.toLowerCase().trim();
+    
+    console.log('🔍 Finding shape by description:', desc, 'Available shapes:', shapes.length);
+    
+    // Color mapping
+    const colorMap = {
+      'blue': ['#3b82f6', '#2563eb', '#1d4ed8', '#1e40af'],
+      'red': ['#ef4444', '#dc2626', '#b91c1c', '#991b1b'],
+      'green': ['#10b981', '#059669', '#047857', '#065f46'],
+      'yellow': ['#eab308', '#ca8a04', '#a16207', '#854d0e'],
+      'purple': ['#8b5cf6', '#7c3aed', '#6d28d9', '#5b21b6'],
+      'pink': ['#ec4899', '#db2777', '#be185d', '#9d174d'],
+      'orange': ['#f97316', '#ea580c', '#c2410c', '#9a3412'],
+      'gray': ['#6b7280', '#4b5563', '#374151', '#1f2937'],
+      'black': ['#000000', '#1f2937', '#111827', '#030712'],
+      'white': ['#ffffff', '#f9fafb', '#f3f4f6', '#e5e7eb']
+    };
+    
+    // Shape type matching
+    const shapeTypes = {
+      'rectangle': SHAPE_TYPES.RECTANGLE,
+      'rect': SHAPE_TYPES.RECTANGLE,
+      'square': SHAPE_TYPES.RECTANGLE,
+      'box': SHAPE_TYPES.RECTANGLE,
+      'circle': SHAPE_TYPES.CIRCLE,
+      'oval': SHAPE_TYPES.CIRCLE,
+      'ellipse': SHAPE_TYPES.CIRCLE,
+      'triangle': SHAPE_TYPES.TRIANGLE,
+      'text': SHAPE_TYPES.TEXT,
+      'label': SHAPE_TYPES.TEXT,
+      'input': SHAPE_TYPES.TEXT_INPUT,
+      'field': SHAPE_TYPES.TEXT_INPUT,
+      'line': SHAPE_TYPES.LINE,
+      'drawing': SHAPE_TYPES.LINE
+    };
+    
+    // Find matches
+    const candidates = shapes.filter(shape => {
+      let matches = 0;
+      let totalCriteria = 0;
+      
+      // Check color
+      const colorWords = Object.keys(colorMap);
+      const mentionedColor = colorWords.find(color => desc.includes(color));
+      if (mentionedColor) {
+        totalCriteria++;
+        const colorVariants = colorMap[mentionedColor];
+        if (colorVariants.some(variant => 
+          shape.fill && shape.fill.toLowerCase() === variant.toLowerCase()
+        )) {
+          matches++;
+          console.log(`✅ Color match: ${shape.fill} matches ${mentionedColor}`);
+        }
+      }
+      
+      // Check shape type
+      const typeWords = Object.keys(shapeTypes);
+      const mentionedType = typeWords.find(type => desc.includes(type));
+      if (mentionedType) {
+        totalCriteria++;
+        if (shape.type === shapeTypes[mentionedType]) {
+          matches++;
+          console.log(`✅ Type match: ${shape.type} matches ${mentionedType}`);
+        }
+      }
+      
+      // Check text content
+      if (shape.text && desc.includes(shape.text.toLowerCase())) {
+        matches++;
+        totalCriteria++;
+        console.log(`✅ Text match: "${shape.text}"`);
+      }
+      
+      // Check size descriptors
+      if (desc.includes('large') || desc.includes('big')) {
+        totalCriteria++;
+        const isLarge = (shape.width > 150) || (shape.height > 150) || 
+                       (shape.radiusX > 75) || (shape.radiusY > 75);
+        if (isLarge) {
+          matches++;
+          console.log(`✅ Size match: large shape`);
+        }
+      }
+      
+      if (desc.includes('small') || desc.includes('tiny')) {
+        totalCriteria++;
+        const isSmall = (shape.width < 80) || (shape.height < 80) || 
+                       (shape.radiusX < 40) || (shape.radiusY < 40);
+        if (isSmall) {
+          matches++;
+          console.log(`✅ Size match: small shape`);
+        }
+      }
+      
+      // Must match at least 1 criterion and have a good match ratio
+      return totalCriteria > 0 && matches / totalCriteria >= 0.5;
+    });
+    
+    // Sort by best match (most criteria matched)
+    candidates.sort((a, b) => {
+      const aScore = this.getDescriptionMatchScore(a, desc, colorMap, shapeTypes);
+      const bScore = this.getDescriptionMatchScore(b, desc, colorMap, shapeTypes);
+      return bScore - aScore;
+    });
+    
+    if (candidates.length > 0) {
+      console.log(`✅ Found ${candidates.length} shape(s) matching "${description}"`);
+      return candidates[0]; // Return best match
+    }
+    
+    console.log(`❌ No shapes found matching "${description}"`);
+    return null;
+  }
+  
+  /**
+   * Calculate match score for description-based search
+   */
+  getDescriptionMatchScore(shape, desc, colorMap, shapeTypes) {
+    let score = 0;
+    
+    // Color matching (high weight)
+    const colorWords = Object.keys(colorMap);
+    const mentionedColor = colorWords.find(color => desc.includes(color));
+    if (mentionedColor) {
+      const colorVariants = colorMap[mentionedColor];
+      if (colorVariants.some(variant => 
+        shape.fill && shape.fill.toLowerCase() === variant.toLowerCase()
+      )) {
+        score += 3;
+      }
+    }
+    
+    // Type matching (high weight)
+    const typeWords = Object.keys(shapeTypes);
+    const mentionedType = typeWords.find(type => desc.includes(type));
+    if (mentionedType && shape.type === shapeTypes[mentionedType]) {
+      score += 3;
+    }
+    
+    // Text matching (medium weight)
+    if (shape.text && desc.includes(shape.text.toLowerCase())) {
+      score += 2;
+    }
+    
+    // Size matching (low weight)
+    if (desc.includes('large') || desc.includes('big')) {
+      const isLarge = (shape.width > 150) || (shape.height > 150) || 
+                     (shape.radiusX > 75) || (shape.radiusY > 75);
+      if (isLarge) score += 1;
+    }
+    
+    if (desc.includes('small') || desc.includes('tiny')) {
+      const isSmall = (shape.width < 80) || (shape.height < 80) || 
+                     (shape.radiusX < 40) || (shape.radiusY < 40);
+      if (isSmall) score += 1;
+    }
+    
+    return score;
+  }
+
+  /**
+   * Find shape by friendly ID or full ID (legacy support)
    */
   findShape(idInput) {
     const shapes = this.getCurrentShapes();
@@ -127,29 +292,61 @@ export class CanvasAPI {
   }
 
   /**
-   * Get human-readable description of a shape
+   * Get human-readable description of a shape with color
    */
   getShapeDescription(shape) {
+    const colorName = this.getColorName(shape.fill);
+    const colorPrefix = colorName ? `${colorName} ` : '';
+    
     switch (shape.type) {
       case SHAPE_TYPES.RECTANGLE:
-        return `${shape.width || 100}×${shape.height || 100}px rectangle`;
+        const width = shape.width || 100;
+        const height = shape.height || 100;
+        const rectType = Math.abs(width - height) < 20 ? 'square' : 'rectangle';
+        return `${colorPrefix}${width}×${height}px ${rectType}`;
       case SHAPE_TYPES.CIRCLE:
         const radiusX = shape.radiusX || 50;
         const radiusY = shape.radiusY || 50;
+        const shapeType = Math.abs(radiusX - radiusY) < 5 ? 'circle' : 'oval';
         return radiusX === radiusY ? 
-          `${radiusX * 2}px circle` : 
-          `${radiusX * 2}×${radiusY * 2}px oval`;
+          `${colorPrefix}${radiusX * 2}px ${shapeType}` : 
+          `${colorPrefix}${radiusX * 2}×${radiusY * 2}px ${shapeType}`;
       case SHAPE_TYPES.TEXT:
-        return `text "${shape.text || 'Text'}"`;
+        return `${colorPrefix}text "${shape.text || 'Text'}"`;
       case SHAPE_TYPES.TEXT_INPUT:
-        return `input field "${shape.text || 'Input Field'}"`;
+        return `${colorPrefix}input field "${shape.text || 'Input Field'}"`;
       case SHAPE_TYPES.LINE:
-        return `drawn line`;
+        return `${colorPrefix}drawn line`;
       case SHAPE_TYPES.TRIANGLE:
-        return `triangle`;
+        return `${colorPrefix}triangle`;
       default:
-        return `${shape.type} shape`;
+        return `${colorPrefix}${shape.type} shape`;
     }
+  }
+
+  /**
+   * Get color name from hex value
+   */
+  getColorName(hexColor) {
+    if (!hexColor) return '';
+    
+    const color = hexColor.toLowerCase();
+    
+    // Common color mappings
+    const colorNames = {
+      '#3b82f6': 'blue', '#2563eb': 'blue', '#1d4ed8': 'blue', '#1e40af': 'blue',
+      '#ef4444': 'red', '#dc2626': 'red', '#b91c1c': 'red', '#991b1b': 'red',
+      '#10b981': 'green', '#059669': 'green', '#047857': 'green', '#065f46': 'green',
+      '#eab308': 'yellow', '#ca8a04': 'yellow', '#a16207': 'yellow', '#854d0e': 'yellow',
+      '#8b5cf6': 'purple', '#7c3aed': 'purple', '#6d28d9': 'purple', '#5b21b6': 'purple',
+      '#ec4899': 'pink', '#db2777': 'pink', '#be185d': 'pink', '#9d174d': 'pink',
+      '#f97316': 'orange', '#ea580c': 'orange', '#c2410c': 'orange', '#9a3412': 'orange',
+      '#6b7280': 'gray', '#4b5563': 'gray', '#374151': 'gray', '#1f2937': 'gray',
+      '#000000': 'black', '#111827': 'black', '#030712': 'black',
+      '#ffffff': 'white', '#f9fafb': 'white', '#f3f4f6': 'white', '#e5e7eb': 'white'
+    };
+    
+    return colorNames[color] || '';
   }
 
   /**
@@ -315,23 +512,39 @@ export class CanvasAPI {
    * MOVE SHAPE - Manipulation function (supports friendly IDs)
    */
   async moveShape(shapeIdInput, x, y) {
-    const shape = this.findShape(shapeIdInput);
+    // Try natural language description first, then fall back to ID
+    let shape = this.findShapeByDescription(shapeIdInput);
     if (!shape) {
-      throw new Error(`Shape not found: ${shapeIdInput}. Use listShapes to see available shapes.`);
+      shape = this.findShape(shapeIdInput);
+    }
+    
+    if (!shape) {
+      throw new Error(`Shape not found: "${shapeIdInput}". Try describing it by color and type (e.g., "blue rectangle").`);
     }
 
     await this.canvas.updateShape(shape.id, { x, y });
-    console.log('✅ Moved shape:', this.extractFriendlyId(shape.id), 'to', `(${x}, ${y})`);
-    return { shapeId: shape.id, friendlyId: this.extractFriendlyId(shape.id), x, y };
+    const description = this.getShapeDescription(shape);
+    console.log('✅ Moved shape:', description, 'to', `(${x}, ${y})`);
+    return { 
+      shapeId: shape.id, 
+      description: description,
+      x, 
+      y 
+    };
   }
 
   /**
    * RESIZE SHAPE - Manipulation function (supports friendly IDs)
    */
   async resizeShape(shapeIdInput, { width, height, radiusX, radiusY, scale }) {
-    const shape = this.findShape(shapeIdInput);
+    // Try natural language description first, then fall back to ID
+    let shape = this.findShapeByDescription(shapeIdInput);
     if (!shape) {
-      throw new Error(`Shape not found: ${shapeIdInput}. Use listShapes to see available shapes.`);
+      shape = this.findShape(shapeIdInput);
+    }
+    
+    if (!shape) {
+      throw new Error(`Shape not found: "${shapeIdInput}". Try describing it by color and type (e.g., "blue rectangle").`);
     }
 
     const updates = {};
@@ -369,37 +582,62 @@ export class CanvasAPI {
     }
 
     await this.canvas.updateShape(shape.id, updates);
-    console.log('✅ Resized shape:', this.extractFriendlyId(shape.id), updates);
-    return { shapeId: shape.id, friendlyId: this.extractFriendlyId(shape.id), ...updates };
+    const description = this.getShapeDescription(shape);
+    console.log('✅ Resized shape:', description, updates);
+    return { 
+      shapeId: shape.id, 
+      description: description, 
+      ...updates 
+    };
   }
 
   /**
    * ROTATE SHAPE - Manipulation function (supports friendly IDs)
    */
   async rotateShape(shapeIdInput, degrees) {
-    const shape = this.findShape(shapeIdInput);
+    // Try natural language description first, then fall back to ID
+    let shape = this.findShapeByDescription(shapeIdInput);
     if (!shape) {
-      throw new Error(`Shape not found: ${shapeIdInput}. Use listShapes to see available shapes.`);
+      shape = this.findShape(shapeIdInput);
+    }
+    
+    if (!shape) {
+      throw new Error(`Shape not found: "${shapeIdInput}". Try describing it by color and type (e.g., "blue rectangle").`);
     }
 
     await this.canvas.updateShape(shape.id, { rotation: degrees });
-    console.log('✅ Rotated shape:', this.extractFriendlyId(shape.id), 'to', degrees, 'degrees');
-    return { shapeId: shape.id, friendlyId: this.extractFriendlyId(shape.id), rotation: degrees };
+    const description = this.getShapeDescription(shape);
+    console.log('✅ Rotated shape:', description, 'to', degrees, 'degrees');
+    return { 
+      shapeId: shape.id, 
+      description: description, 
+      rotation: degrees 
+    };
   }
 
   /**
    * CHANGE SHAPE COLOR - Manipulation function (supports friendly IDs)
    */
   async changeShapeColor(shapeIdInput, color) {
-    const shape = this.findShape(shapeIdInput);
+    // Try natural language description first, then fall back to ID
+    let shape = this.findShapeByDescription(shapeIdInput);
     if (!shape) {
-      throw new Error(`Shape not found: ${shapeIdInput}. Use listShapes to see available shapes.`);
+      shape = this.findShape(shapeIdInput);
+    }
+    
+    if (!shape) {
+      throw new Error(`Shape not found: "${shapeIdInput}". Try describing it by color and type (e.g., "blue rectangle").`);
     }
 
     const parsedColor = this.parseColor(color);
     await this.canvas.updateShape(shape.id, { fill: parsedColor });
-    console.log('✅ Changed shape color:', this.extractFriendlyId(shape.id), 'to', parsedColor);
-    return { shapeId: shape.id, friendlyId: this.extractFriendlyId(shape.id), fill: parsedColor };
+    const description = this.getShapeDescription(shape);
+    console.log('✅ Changed shape color:', description, 'to', parsedColor);
+    return { 
+      shapeId: shape.id, 
+      description: description, 
+      fill: parsedColor 
+    };
   }
 
   /**
@@ -686,14 +924,24 @@ export class CanvasAPI {
    * DELETE SHAPE - Utility function (supports friendly IDs)
    */
   async deleteShape(shapeIdInput) {
-    const shape = this.findShape(shapeIdInput);
+    // Try natural language description first, then fall back to ID
+    let shape = this.findShapeByDescription(shapeIdInput);
     if (!shape) {
-      throw new Error(`Shape not found: ${shapeIdInput}. Use listShapes to see available shapes.`);
+      shape = this.findShape(shapeIdInput);
+    }
+    
+    if (!shape) {
+      throw new Error(`Shape not found: "${shapeIdInput}". Try describing it by color and type (e.g., "blue rectangle").`);
     }
 
+    const description = this.getShapeDescription(shape);
     await this.canvas.deleteShape(shape.id);
-    console.log('✅ Deleted shape:', this.extractFriendlyId(shape.id));
-    return { shapeId: shape.id, friendlyId: this.extractFriendlyId(shape.id), deleted: true };
+    console.log('✅ Deleted shape:', description);
+    return { 
+      shapeId: shape.id, 
+      description: description, 
+      deleted: true 
+    };
   }
 }
 
