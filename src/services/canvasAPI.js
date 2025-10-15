@@ -16,15 +16,28 @@ export class CanvasAPI {
   }
 
   /**
+   * Get current shapes from canvas context (always fresh)
+   */
+  getCurrentShapes() {
+    const shapes = this.canvas.shapes || [];
+    console.log('🔍 getCurrentShapes called:', {
+      shapesCount: shapes.length,
+      shapes: shapes.map(s => ({ 
+        id: s.id, 
+        friendlyId: this.extractFriendlyId(s.id),
+        type: s.type, 
+        x: s.x, 
+        y: s.y 
+      }))
+    });
+    return shapes;
+  }
+
+  /**
    * Get current canvas state for AI context
    */
   getCanvasState() {
-    const shapes = this.canvas.shapes || [];
-    console.log('🔍 CanvasAPI getCanvasState called:', {
-      shapesCount: shapes.length,
-      shapes: shapes.map(s => ({ id: s.id, type: s.type, x: s.x, y: s.y })),
-      selectedIds: Array.from(this.canvas.selectedIds || [])
-    });
+    const shapes = this.getCurrentShapes();
     
     return {
       shapes: shapes.map(shape => ({
@@ -61,21 +74,36 @@ export class CanvasAPI {
    * Find shape by friendly ID or full ID
    */
   findShape(idInput) {
-    const shapes = this.canvas.shapes || [];
+    const shapes = this.getCurrentShapes();
+    
+    console.log('🔍 findShape called with:', idInput, 'Available shapes:', shapes.length);
     
     // Try exact match first
     let shape = shapes.find(s => s.id === idInput);
-    if (shape) return shape;
+    if (shape) {
+      console.log('✅ Found exact match:', shape.id);
+      return shape;
+    }
     
     // Try friendly ID match
     shape = shapes.find(s => this.extractFriendlyId(s.id) === idInput);
-    if (shape) return shape;
+    if (shape) {
+      console.log('✅ Found friendly ID match:', shape.id, 'for', idInput);
+      return shape;
+    }
     
     // Try partial match (case insensitive)
     shape = shapes.find(s => 
       s.id.toLowerCase().includes(idInput.toLowerCase()) ||
       this.extractFriendlyId(s.id).toLowerCase().includes(idInput.toLowerCase())
     );
+    
+    if (shape) {
+      console.log('✅ Found partial match:', shape.id, 'for', idInput);
+    } else {
+      console.log('❌ No shape found for:', idInput);
+      console.log('Available friendly IDs:', shapes.map(s => this.extractFriendlyId(s.id)));
+    }
     
     return shape;
   }
@@ -84,7 +112,7 @@ export class CanvasAPI {
    * List all shapes with friendly descriptions for AI
    */
   listShapes() {
-    const shapes = this.canvas.shapes || [];
+    const shapes = this.getCurrentShapes();
     return shapes.map(shape => {
       const description = this.getShapeDescription(shape);
       return {
@@ -139,8 +167,8 @@ export class CanvasAPI {
       const stage = stageRef;
       const scale = this.canvas.stageScale || 1;
       const position = this.canvas.stagePosition || { x: 0, y: 0 };
-      
-      return {
+    
+    return {
         x: (-position.x + stage.width() / 2) / scale,
         y: (-position.y + stage.height() / 2) / scale
       };
@@ -221,24 +249,24 @@ export class CanvasAPI {
     }
 
     const newShape = {
-      type: shapeType,
+        type: shapeType,
       x: x || 0,
       y: y || 0,
       fill: this.parseColor(fill) || defaults.fill,
       zIndex: (this.canvas.shapes?.length || 0) + 1
-    };
+      };
 
-    // Add type-specific properties
-    switch (shapeType) {
-      case SHAPE_TYPES.RECTANGLE:
+      // Add type-specific properties
+      switch (shapeType) {
+        case SHAPE_TYPES.RECTANGLE:
         newShape.width = width || defaults.width;
         newShape.height = height || defaults.height;
-        break;
-      
-      case SHAPE_TYPES.CIRCLE:
+          break;
+        
+        case SHAPE_TYPES.CIRCLE:
         newShape.radiusX = radiusX || defaults.radiusX;
         newShape.radiusY = radiusY || defaults.radiusY;
-        break;
+          break;
       
       case SHAPE_TYPES.TEXT:
       case SHAPE_TYPES.TEXT_INPUT:
@@ -254,7 +282,7 @@ export class CanvasAPI {
         } else if (fill && this.isDarkColor(fill)) {
           newShape.fill = '#FFFFFF'; // White text on dark backgrounds
         }
-        break;
+          break;
       
       case SHAPE_TYPES.TRIANGLE:
         // Triangles use points array, not width/height
