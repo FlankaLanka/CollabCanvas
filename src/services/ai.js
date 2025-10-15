@@ -79,13 +79,13 @@ const AI_FUNCTIONS = [
   // MANIPULATION COMMANDS
   {
     name: 'moveShape',
-    description: 'Move an existing shape to a new position',
+    description: 'Move an existing shape to a new position (supports friendly IDs)',
     parameters: {
       type: 'object',
       properties: {
         shapeId: {
           type: 'string',
-          description: 'ID of the shape to move'
+          description: 'Full shape ID or friendly ID (like "abc123") of the shape to move'
         },
         x: {
           type: 'number',
@@ -102,13 +102,13 @@ const AI_FUNCTIONS = [
 
   {
     name: 'resizeShape',
-    description: 'Resize an existing shape',
+    description: 'Resize an existing shape (supports friendly IDs)',
     parameters: {
       type: 'object',
       properties: {
         shapeId: {
           type: 'string',
-          description: 'ID of the shape to resize'
+          description: 'Full shape ID or friendly ID (like "abc123") of the shape to resize'
         },
         width: {
           type: 'number',
@@ -137,13 +137,13 @@ const AI_FUNCTIONS = [
 
   {
     name: 'rotateShape',
-    description: 'Rotate an existing shape',
+    description: 'Rotate an existing shape (supports friendly IDs)',
     parameters: {
       type: 'object',
       properties: {
         shapeId: {
           type: 'string',
-          description: 'ID of the shape to rotate'
+          description: 'Full shape ID or friendly ID (like "abc123") of the shape to rotate'
         },
         degrees: {
           type: 'number',
@@ -156,13 +156,13 @@ const AI_FUNCTIONS = [
 
   {
     name: 'changeShapeColor',
-    description: 'Change the color of an existing shape',
+    description: 'Change the color of an existing shape (supports friendly IDs)',
     parameters: {
       type: 'object',
       properties: {
         shapeId: {
           type: 'string',
-          description: 'ID of the shape to recolor'
+          description: 'Full shape ID or friendly ID (like "abc123") of the shape to recolor'
         },
         color: {
           type: 'string',
@@ -338,7 +338,7 @@ const AI_FUNCTIONS = [
   // UTILITY COMMANDS
   {
     name: 'getCanvasState',
-    description: 'Get current canvas state and shapes',
+    description: 'Get current canvas state and shapes with detailed information',
     parameters: {
       type: 'object',
       properties: {},
@@ -347,14 +347,39 @@ const AI_FUNCTIONS = [
   },
 
   {
-    name: 'deleteShape',
-    description: 'Delete a shape from the canvas',
+    name: 'listShapes',
+    description: 'List all shapes on the canvas with friendly descriptions and IDs for easy reference',
+    parameters: {
+      type: 'object',
+      properties: {},
+      required: []
+    }
+  },
+
+  {
+    name: 'identifyShape',
+    description: 'Find and identify a specific shape by its ID or friendly ID',
     parameters: {
       type: 'object',
       properties: {
         shapeId: {
           type: 'string',
-          description: 'ID of the shape to delete'
+          description: 'Full shape ID or friendly ID (like "abc123") to identify'
+        }
+      },
+      required: ['shapeId']
+    }
+  },
+
+  {
+    name: 'deleteShape',
+    description: 'Delete an existing shape from the canvas (supports friendly IDs)',
+    parameters: {
+      type: 'object',
+      properties: {
+        shapeId: {
+          type: 'string',
+          description: 'Full shape ID or friendly ID (visible in inspector) of the shape to delete'
         }
       },
       required: ['shapeId']
@@ -395,7 +420,15 @@ export class AICanvasService {
 CURRENT CANVAS STATE:
 ${JSON.stringify(this.canvasAPI.getCanvasState(), null, 2)}
 
+SHAPE IDENTIFICATION SYSTEM:
+- Each shape has a unique ID and a friendly ID (short code like "abc123")
+- Use listShapes() to see all shapes with descriptions and friendly IDs
+- Use identifyShape(id) to find specific shapes by full or friendly ID
+- When manipulating existing shapes, always use their ID (friendly ID works too)
+- Example: "move shape abc123 to position 200, 300" or "resize the blue rectangle"
+
 GUIDELINES:
+- ALWAYS use listShapes() first if user asks about existing shapes
 - Create visually appealing, well-positioned layouts
 - Use appropriate colors from the palette: ${COLOR_PALETTE.join(', ')}
 - Position elements to avoid overlaps when possible
@@ -566,6 +599,26 @@ Alternative: Deploy to Vercel/Netlify to test AI features in production.`;
         
       case 'getCanvasState':
         return this.canvasAPI.getCanvasState();
+      
+      case 'listShapes':
+        return this.canvasAPI.listShapes();
+      
+      case 'identifyShape':
+        const shape = this.canvasAPI.findShape(parsedArgs.shapeId);
+        if (!shape) {
+          return { error: `Shape not found: ${parsedArgs.shapeId}`, availableShapes: this.canvasAPI.listShapes() };
+        }
+        return {
+          found: true,
+          shape: {
+            id: shape.id,
+            friendlyId: this.canvasAPI.extractFriendlyId(shape.id),
+            type: shape.type,
+            description: this.canvasAPI.getShapeDescription(shape),
+            position: `(${Math.round(shape.x || 0)}, ${Math.round(shape.y || 0)})`,
+            fill: shape.fill
+          }
+        };
       
       case 'deleteShape':
         return await this.canvasAPI.deleteShape(parsedArgs.shapeId);

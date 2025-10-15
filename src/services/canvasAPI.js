@@ -39,11 +39,89 @@ export class CanvasAPI {
         fill: shape.fill,
         text: shape.text,
         rotation: shape.rotation || 0,
-        zIndex: shape.zIndex || 0
+        zIndex: shape.zIndex || 0,
+        // Add friendly ID for easier reference
+        friendlyId: this.extractFriendlyId(shape.id)
       })),
       totalShapes: shapes.length,
       selectedIds: Array.from(this.canvas.selectedIds || [])
     };
+  }
+
+  /**
+   * Extract friendly ID from full shape ID for easier AI reference
+   */
+  extractFriendlyId(fullId) {
+    if (!fullId) return 'unknown';
+    // Extract last part after final dash (e.g., "shape-user-timestamp-abc123" -> "abc123")
+    return fullId.split('-').slice(-1)[0] || fullId;
+  }
+
+  /**
+   * Find shape by friendly ID or full ID
+   */
+  findShape(idInput) {
+    const shapes = this.canvas.shapes || [];
+    
+    // Try exact match first
+    let shape = shapes.find(s => s.id === idInput);
+    if (shape) return shape;
+    
+    // Try friendly ID match
+    shape = shapes.find(s => this.extractFriendlyId(s.id) === idInput);
+    if (shape) return shape;
+    
+    // Try partial match (case insensitive)
+    shape = shapes.find(s => 
+      s.id.toLowerCase().includes(idInput.toLowerCase()) ||
+      this.extractFriendlyId(s.id).toLowerCase().includes(idInput.toLowerCase())
+    );
+    
+    return shape;
+  }
+
+  /**
+   * List all shapes with friendly descriptions for AI
+   */
+  listShapes() {
+    const shapes = this.canvas.shapes || [];
+    return shapes.map(shape => {
+      const description = this.getShapeDescription(shape);
+      return {
+        id: shape.id,
+        friendlyId: this.extractFriendlyId(shape.id),
+        type: shape.type,
+        description: description,
+        position: `(${Math.round(shape.x || 0)}, ${Math.round(shape.y || 0)})`,
+        fill: shape.fill
+      };
+    });
+  }
+
+  /**
+   * Get human-readable description of a shape
+   */
+  getShapeDescription(shape) {
+    switch (shape.type) {
+      case SHAPE_TYPES.RECTANGLE:
+        return `${shape.width || 100}×${shape.height || 100}px rectangle`;
+      case SHAPE_TYPES.CIRCLE:
+        const radiusX = shape.radiusX || 50;
+        const radiusY = shape.radiusY || 50;
+        return radiusX === radiusY ? 
+          `${radiusX * 2}px circle` : 
+          `${radiusX * 2}×${radiusY * 2}px oval`;
+      case SHAPE_TYPES.TEXT:
+        return `text "${shape.text || 'Text'}"`;
+      case SHAPE_TYPES.TEXT_INPUT:
+        return `input field "${shape.text || 'Input Field'}"`;
+      case SHAPE_TYPES.LINE:
+        return `drawn line`;
+      case SHAPE_TYPES.TRIANGLE:
+        return `triangle`;
+      default:
+        return `${shape.type} shape`;
+    }
   }
 
   /**
@@ -206,26 +284,26 @@ export class CanvasAPI {
   }
 
   /**
-   * MOVE SHAPE - Manipulation function
+   * MOVE SHAPE - Manipulation function (supports friendly IDs)
    */
-  async moveShape(shapeId, x, y) {
-    const shape = this.canvas.shapes?.find(s => s.id === shapeId);
+  async moveShape(shapeIdInput, x, y) {
+    const shape = this.findShape(shapeIdInput);
     if (!shape) {
-      throw new Error(`Shape not found: ${shapeId}`);
+      throw new Error(`Shape not found: ${shapeIdInput}. Use listShapes to see available shapes.`);
     }
 
-    await this.canvas.updateShape(shapeId, { x, y });
-    console.log('✅ Moved shape:', shapeId, 'to', `(${x}, ${y})`);
-    return { shapeId, x, y };
+    await this.canvas.updateShape(shape.id, { x, y });
+    console.log('✅ Moved shape:', this.extractFriendlyId(shape.id), 'to', `(${x}, ${y})`);
+    return { shapeId: shape.id, friendlyId: this.extractFriendlyId(shape.id), x, y };
   }
 
   /**
-   * RESIZE SHAPE - Manipulation function
+   * RESIZE SHAPE - Manipulation function (supports friendly IDs)
    */
-  async resizeShape(shapeId, { width, height, radiusX, radiusY, scale }) {
-    const shape = this.canvas.shapes?.find(s => s.id === shapeId);
+  async resizeShape(shapeIdInput, { width, height, radiusX, radiusY, scale }) {
+    const shape = this.findShape(shapeIdInput);
     if (!shape) {
-      throw new Error(`Shape not found: ${shapeId}`);
+      throw new Error(`Shape not found: ${shapeIdInput}. Use listShapes to see available shapes.`);
     }
 
     const updates = {};
@@ -262,38 +340,38 @@ export class CanvasAPI {
     }
     }
 
-    await this.canvas.updateShape(shapeId, updates);
-    console.log('✅ Resized shape:', shapeId, updates);
-    return { shapeId, ...updates };
+    await this.canvas.updateShape(shape.id, updates);
+    console.log('✅ Resized shape:', this.extractFriendlyId(shape.id), updates);
+    return { shapeId: shape.id, friendlyId: this.extractFriendlyId(shape.id), ...updates };
   }
 
   /**
-   * ROTATE SHAPE - Manipulation function
+   * ROTATE SHAPE - Manipulation function (supports friendly IDs)
    */
-  async rotateShape(shapeId, degrees) {
-    const shape = this.canvas.shapes?.find(s => s.id === shapeId);
+  async rotateShape(shapeIdInput, degrees) {
+    const shape = this.findShape(shapeIdInput);
     if (!shape) {
-      throw new Error(`Shape not found: ${shapeId}`);
+      throw new Error(`Shape not found: ${shapeIdInput}. Use listShapes to see available shapes.`);
     }
 
-    await this.canvas.updateShape(shapeId, { rotation: degrees });
-    console.log('✅ Rotated shape:', shapeId, 'to', degrees, 'degrees');
-    return { shapeId, rotation: degrees };
+    await this.canvas.updateShape(shape.id, { rotation: degrees });
+    console.log('✅ Rotated shape:', this.extractFriendlyId(shape.id), 'to', degrees, 'degrees');
+    return { shapeId: shape.id, friendlyId: this.extractFriendlyId(shape.id), rotation: degrees };
   }
 
   /**
-   * CHANGE SHAPE COLOR - Manipulation function
+   * CHANGE SHAPE COLOR - Manipulation function (supports friendly IDs)
    */
-  async changeShapeColor(shapeId, color) {
-    const shape = this.canvas.shapes?.find(s => s.id === shapeId);
+  async changeShapeColor(shapeIdInput, color) {
+    const shape = this.findShape(shapeIdInput);
     if (!shape) {
-      throw new Error(`Shape not found: ${shapeId}`);
+      throw new Error(`Shape not found: ${shapeIdInput}. Use listShapes to see available shapes.`);
     }
 
     const parsedColor = this.parseColor(color);
-    await this.canvas.updateShape(shapeId, { fill: parsedColor });
-    console.log('✅ Changed shape color:', shapeId, 'to', parsedColor);
-    return { shapeId, fill: parsedColor };
+    await this.canvas.updateShape(shape.id, { fill: parsedColor });
+    console.log('✅ Changed shape color:', this.extractFriendlyId(shape.id), 'to', parsedColor);
+    return { shapeId: shape.id, friendlyId: this.extractFriendlyId(shape.id), fill: parsedColor };
   }
 
   /**
@@ -577,17 +655,17 @@ export class CanvasAPI {
   }
 
   /**
-   * DELETE SHAPE - Utility function
+   * DELETE SHAPE - Utility function (supports friendly IDs)
    */
-  async deleteShape(shapeId) {
-    const shape = this.canvas.shapes?.find(s => s.id === shapeId);
+  async deleteShape(shapeIdInput) {
+    const shape = this.findShape(shapeIdInput);
     if (!shape) {
-      throw new Error(`Shape not found: ${shapeId}`);
+      throw new Error(`Shape not found: ${shapeIdInput}. Use listShapes to see available shapes.`);
     }
 
-    await this.canvas.deleteShape(shapeId);
-    console.log('✅ Deleted shape:', shapeId);
-    return { shapeId, deleted: true };
+    await this.canvas.deleteShape(shape.id);
+    console.log('✅ Deleted shape:', this.extractFriendlyId(shape.id));
+    return { shapeId: shape.id, friendlyId: this.extractFriendlyId(shape.id), deleted: true };
   }
 }
 
