@@ -1,4 +1,3 @@
-import OpenAI from 'openai';
 import { SHAPE_TYPES, DEFAULT_SHAPE_PROPS, COLOR_PALETTE } from '../utils/constants';
 import { 
   getViewportCenter as getImprovedViewportCenter, 
@@ -7,11 +6,30 @@ import {
   LAYOUT_CONSTANTS 
 } from './aiLayoutHelpers';
 
-// Initialize OpenAI client
-const openai = new OpenAI({
-  apiKey: import.meta.env.VITE_OPENAI_API_KEY,
-  dangerouslyAllowBrowser: true // Note: In production, use a backend proxy
-});
+// API endpoint for OpenAI requests (proxied through our backend)
+const AI_API_ENDPOINT = '/api/ai-chat';
+
+// Helper function to make requests to our backend AI API
+async function makeAIRequest(messages, functions = null, function_call = null) {
+  const response = await fetch(AI_API_ENDPOINT, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      messages,
+      functions,
+      function_call
+    })
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: 'Unknown error' }));
+    throw new Error(error.error || `HTTP ${response.status}`);
+  }
+
+  return await response.json();
+}
 
 // AI function schema for canvas operations
 const AI_FUNCTIONS = [
@@ -564,14 +582,11 @@ Always provide clear, immediate feedback about what you're creating and where. F
       };
 
       // Make AI request with function calling
-      const response = await openai.chat.completions.create({
-        model: 'gpt-4-turbo-preview',
-        messages: [systemMessage, ...this.conversationHistory],
-        functions: AI_FUNCTIONS,
-        function_call: 'auto',
-        temperature: 0.7,
-        max_tokens: 1000
-      });
+      const response = await makeAIRequest(
+        [systemMessage, ...this.conversationHistory],
+        AI_FUNCTIONS,
+        'auto'
+      );
 
       const message = response.choices[0].message;
 
@@ -593,12 +608,9 @@ Always provide clear, immediate feedback about what you're creating and where. F
         });
 
         // Get final response from AI
-        const finalResponse = await openai.chat.completions.create({
-          model: 'gpt-4-turbo-preview',
-          messages: [systemMessage, ...this.conversationHistory],
-          temperature: 0.7,
-          max_tokens: 200
-        });
+        const finalResponse = await makeAIRequest(
+          [systemMessage, ...this.conversationHistory]
+        );
 
         const finalMessage = finalResponse.choices[0].message.content;
         
