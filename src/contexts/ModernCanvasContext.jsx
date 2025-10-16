@@ -51,6 +51,26 @@ export function CanvasProvider({ children }) {
   const syncLoading = store.syncLoading || false;
   const isDragging = store.isDragging || false;
   
+  // Ensure store values are properly tracked for re-renders
+  useEffect(() => {
+    const unsubscribe = useCanvasStore.subscribe(
+      (state) => state.stageScale,
+      () => {
+        triggerUpdate();
+      }
+    );
+    const unsubscribe2 = useCanvasStore.subscribe(
+      (state) => state.stagePosition,
+      () => {
+        triggerUpdate();
+      }
+    );
+    return () => {
+      unsubscribe();
+      unsubscribe2();
+    };
+  }, [triggerUpdate]);
+  
   // Firebase sync hooks
   const {
     shapes: syncedShapes,
@@ -896,6 +916,7 @@ export function CanvasProvider({ children }) {
     syncStatus,
     syncLoading,
     isDragging,
+    store, // Add store for direct access to shape objects
     
     // Shape management
     addShape,
@@ -922,7 +943,12 @@ export function CanvasProvider({ children }) {
     updateStageTransform: (scale, position) => {
       if (scale !== undefined) store.stageScale = scale;
       if (position !== undefined) store.stagePosition = position;
+      triggerUpdate(); // Force React re-render when stage transform changes
     },
+    
+    // Grid snapping utilities (passed from Canvas component)
+    snapToGrid: false, // Will be overridden by Canvas
+    setSnapToGrid: () => {}, // Will be overridden by Canvas
     getShape: (id) => shapes.find(shape => shape.id === id),
     getSelectedShape: () => {
       const selected = shapes.filter(shape => store.selectedIds.has(shape.id));

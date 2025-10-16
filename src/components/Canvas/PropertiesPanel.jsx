@@ -1,4 +1,4 @@
-import { useCallback, useState, useEffect } from 'react';
+import { useCallback, useState, useEffect, useRef } from 'react';
 import { useCanvas } from '../../contexts/ModernCanvasContext';
 import { 
   SHAPE_TYPES, 
@@ -277,9 +277,17 @@ const ColorPicker = ({ color, onChange }) => {
   const rgb = hexToRgb(localColor);
 
   const handleRgbChange = (component, value) => {
-    const newRgb = { ...rgb, [component]: parseInt(value) };
+    const numValue = parseInt(value);
+    // Validate input to prevent invalid colors
+    if (isNaN(numValue) || numValue < 0 || numValue > 255) return;
+    
+    const newRgb = { ...rgb, [component]: numValue };
     const newHex = rgbToHex(newRgb.r, newRgb.g, newRgb.b);
+    
+    // Update local color state immediately for smooth UI
     setLocalColor(newHex);
+    
+    // Call onChange immediately - the parent will handle debouncing
     onChange(newHex);
   };
 
@@ -310,6 +318,7 @@ const ColorPicker = ({ color, onChange }) => {
             value={rgb.r}
             onChange={(e) => handleRgbChange('r', e.target.value)}
             className="w-full h-2 bg-red-200 rounded-lg appearance-none cursor-pointer"
+            step="1"
           />
         </div>
         <div>
@@ -324,6 +333,7 @@ const ColorPicker = ({ color, onChange }) => {
             value={rgb.g}
             onChange={(e) => handleRgbChange('g', e.target.value)}
             className="w-full h-2 bg-green-200 rounded-lg appearance-none cursor-pointer"
+            step="1"
           />
         </div>
         <div>
@@ -338,6 +348,7 @@ const ColorPicker = ({ color, onChange }) => {
             value={rgb.b}
             onChange={(e) => handleRgbChange('b', e.target.value)}
             className="w-full h-2 bg-blue-200 rounded-lg appearance-none cursor-pointer"
+            step="1"
           />
         </div>
       </div>
@@ -392,7 +403,9 @@ function PropertiesPanel() {
     selectedId, 
     selectedIds,
     setShapeZIndex,
-    addBezierPoint
+    addBezierPoint,
+    shapes,
+    store
   } = useCanvas();
   
   const selectedShape = getSelectedShape(); // Primary selected shape
@@ -480,6 +493,11 @@ function PropertiesPanel() {
             scaleHeight = 100;
           }
           break;
+        case SHAPE_TYPES.BEZIER_CURVE:
+          // Bezier curves don't have meaningful width/height - they're defined by anchor points
+          scaleWidth = 0;
+          scaleHeight = 0;
+          break;
         default:
           scaleWidth = selectedShape.width || 100;
           scaleHeight = selectedShape.height || 100;
@@ -494,8 +512,8 @@ function PropertiesPanel() {
         scaleY: scaleHeight, // Now represents actual height in pixels
         rotation: selectedShape.rotation || 0,
         
-        // Appearance
-        fill: selectedShape.fill || '#3B82F6',
+        // Appearance (handle both fill and stroke based on shape type)
+        fill: getShapeColorProperty(selectedShape),
         
         // Size properties (in pixels)
         width: selectedShape.width || 100,
@@ -514,6 +532,15 @@ function PropertiesPanel() {
       });
     }
   }, [selectedShape, calculateTriangleScale]);
+
+  // Cleanup color sync timeout when component unmounts or shape changes
+  useEffect(() => {
+    return () => {
+      if (colorSyncTimeoutRef.current) {
+        clearTimeout(colorSyncTimeoutRef.current);
+      }
+    };
+  }, [selectedShape?.id]);
 
   // Update shape property with debouncing for size properties
   const updateShapeProperty = useCallback(async (property, value) => {
@@ -673,6 +700,10 @@ function PropertiesPanel() {
         const newScaleX = widthValue / originalWidth;
         updateShapeProperty('scaleX', newScaleX);
         break;
+      case SHAPE_TYPES.BEZIER_CURVE:
+        // Bezier curves don't have meaningful width/height - they're defined by anchor points
+        console.warn('Scale change attempted on Bezier curve - ignoring');
+        break;
       default:
         updateShapeProperty('width', widthValue);
     }
@@ -721,17 +752,67 @@ function PropertiesPanel() {
         const newScaleY = heightValue / originalHeight;
         updateShapeProperty('scaleY', newScaleY);
         break;
+      case SHAPE_TYPES.BEZIER_CURVE:
+        // Bezier curves don't have meaningful width/height - they're defined by anchor points
+        console.warn('Scale change attempted on Bezier curve - ignoring');
+        break;
       default:
         updateShapeProperty('height', heightValue);
     }
   }, [updateShapeProperty, selectedShape]);
 
 
-  // Handle color changes
+  // Get the appropriate color property for the selected shape
+  const getShapeColorProperty = useCallback((shape) => {
+    if (!shape) return '#3B82F6';
+    
+    // Bezier curves and lines use stroke, other shapes use fill
+    if (shape.type === SHAPE_TYPES.BEZIER_CURVE || shape.type === SHAPE_TYPES.LINE) {
+      return shape.stroke || '#8B5CF6';
+    }
+    
+    return shape.fill || '#3B82F6';
+  }, []);
+
+  // Debounced color sync to database
+  const colorSyncTimeoutRef = useRef(null);
+  
+  // Handle color changes with immediate local update and debounced database sync
   const handleColorChange = useCallback((color) => {
+    if (!selectedShape || !store) return;
+    
+    // Update local properties immediately for smooth UI
     setLocalProperties(prev => ({ ...prev, fill: color }));
-    updateShapeProperty('fill', color);
-  }, [updateShapeProperty]);
+    
+    // Determine the appropriate property based on shape type
+    const colorProperty = (selectedShape.type === SHAPE_TYPES.BEZIER_CURVE || selectedShape.type === SHAPE_TYPES.LINE) ? 'stroke' : 'fill';
+    
+    // IMMEDIATE: Update the local shape object for instant visual feedback
+    const localShape = store.shapes.get(selectedShape.id);
+    if (localShape) {
+      localShape[colorProperty] = color;
+      // Trigger re-render by updating a dummy timestamp (forces React to re-render)
+      localShape._lastColorUpdate = Date.now();
+    }
+    
+    // Clear existing timeout
+    if (colorSyncTimeoutRef.current) {
+      clearTimeout(colorSyncTimeoutRef.current);
+    }
+    
+    // DEBOUNCED: Sync to database after user stops moving slider for 150ms
+    colorSyncTimeoutRef.current = setTimeout(() => {
+      console.log('🎨 Color syncing to database:', {
+        shapeType: selectedShape.type,
+        shapeId: selectedShape.id,
+        colorProperty,
+        newColor: color
+      });
+      
+      updateShapeProperty(colorProperty, color);
+    }, 150);
+    
+  }, [updateShapeProperty, selectedShape, store]);
 
   if (selectedIds.length === 0 || !selectedShape) {
     return (
@@ -805,16 +886,19 @@ function PropertiesPanel() {
           precision={0}
         />
 
-        <VectorInput
-          label="Size"
-          x={localProperties.scaleX || 100}
-          y={localProperties.scaleY || 100}
-          onXChange={handleScaleXChange}
-          onYChange={handleScaleYChange}
-          precision={0}
-          xLabel="W"
-          yLabel="H"
-        />
+        {/* Size controls (not applicable for Bezier curves which are defined by anchor points) */}
+        {selectedShape?.type !== SHAPE_TYPES.BEZIER_CURVE && (
+          <VectorInput
+            label="Size"
+            x={localProperties.scaleX || 100}
+            y={localProperties.scaleY || 100}
+            onXChange={handleScaleXChange}
+            onYChange={handleScaleYChange}
+            precision={0}
+            xLabel="W"
+            yLabel="H"
+          />
+        )}
       </div>
 
 

@@ -88,11 +88,11 @@ export const DEFAULT_SHAPE_PROPS = {
   },
   [SHAPE_TYPES.BEZIER_CURVE]: {
     // Bezier curve defined by anchor points with auto-generated smooth control handles
-    // Default creates a simple curve with 3 anchor points
+    // Default creates a simple curve with 3 anchor points CENTERED around (0,0)
     anchorPoints: [
-      { x: 0, y: 0 },       // Start anchor point
-      { x: 75, y: -50 },    // Middle anchor point  
-      { x: 150, y: 0 }      // End anchor point
+      { x: -75, y: 0 },     // Start anchor point (left)
+      { x: 0, y: -50 },     // Middle anchor point (center, up)
+      { x: 75, y: 0 }       // End anchor point (right)
     ],
     stroke: '#8B5CF6',      // Purple stroke
     strokeWidth: 3,

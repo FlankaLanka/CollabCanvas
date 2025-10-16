@@ -83,13 +83,13 @@ export function usePresence() {
     }
   }, [isActive]);
 
-  // Update cursor from mouse event
+  // Update cursor from mouse event with optimized coordinate handling
   const updateCursorFromEvent = useCallback((event, stage = null) => {
     if (!isActive) return;
 
     const rect = event.target.getBoundingClientRect();
-    const x = event.clientX - rect.left;
-    const y = event.clientY - rect.top;
+    const x = Math.round(event.clientX - rect.left); // Pixel-perfect screen coordinates
+    const y = Math.round(event.clientY - rect.top);
     
     let canvasX = x;
     let canvasY = y;
@@ -98,8 +98,8 @@ export function usePresence() {
     if (stage) {
       const stagePos = stage.position();
       const stageScale = stage.scaleX();
-      canvasX = (x - stagePos.x) / stageScale;
-      canvasY = (y - stagePos.y) / stageScale;
+      canvasX = Math.round((x - stagePos.x) / stageScale);
+      canvasY = Math.round((y - stagePos.y) / stageScale);
     }
 
     updateCursor(x, y, canvasX, canvasY);

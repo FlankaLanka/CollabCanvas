@@ -13,7 +13,9 @@ import './index.css';
 
 // Canvas App component with keyboard shortcuts
 function CanvasApp() {
-  // Note: Removed deleteSelectedShapes and selectedId as backspace deletion was disabled
+  // Grid and snapping state
+  const [showGrid, setShowGrid] = useState(true);
+  const [snapToGrid, setSnapToGrid] = useState(false);
 
   // Handle keyboard shortcuts
   useEffect(() => {
@@ -32,11 +34,19 @@ function CanvasApp() {
       
       <main className="flex-1 flex overflow-hidden">
         {/* Left Toolbar */}
-        <Toolbar />
+        <Toolbar 
+          showGrid={showGrid}
+          setShowGrid={setShowGrid}
+          snapToGrid={snapToGrid}
+          setSnapToGrid={setSnapToGrid}
+        />
         
         {/* Main Canvas Area */}
         <div className="flex-1 relative min-w-0">
-          <Canvas />
+          <Canvas 
+            showGrid={showGrid}
+            snapToGrid={snapToGrid}
+          />
           <CanvasControls />
         </div>
         

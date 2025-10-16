@@ -163,14 +163,14 @@ export function subscribeToUserCursors(callback) {
     
     if (cursorsData) {
       Object.entries(cursorsData).forEach(([uid, cursorData]) => {
-        // Only show cursors from other users and recent ones (< 5 seconds old)
-        if (uid !== currentUser?.uid && cursorData && (now - cursorData.timestamp) < 5000) {
+        // Only show cursors from other users and recent ones (< 3 seconds old for faster cleanup)
+        if (uid !== currentUser?.uid && cursorData && (now - cursorData.timestamp) < 3000) {
           cursors.push({
             uid,
-            x: cursorData.x,
-            y: cursorData.y,
-            canvasX: cursorData.canvasX,
-            canvasY: cursorData.canvasY,
+            x: Math.round(cursorData.x), // Round for pixel-perfect positioning
+            y: Math.round(cursorData.y),
+            canvasX: Math.round(cursorData.canvasX),
+            canvasY: Math.round(cursorData.canvasY),
             displayName: cursorData.displayName,
             color: cursorData.color,
             timestamp: cursorData.timestamp
@@ -210,9 +210,9 @@ function getUserColor(uid) {
   return colors[Math.abs(hash) % colors.length];
 }
 
-// Throttle cursor updates
+// Throttle cursor updates for smooth 30fps
 let lastCursorUpdate = 0;
-const CURSOR_THROTTLE = 100; // 10fps
+const CURSOR_THROTTLE = 33; // 30fps for smooth movement
 
 export function throttledUpdateUserCursor(x, y, canvasX, canvasY) {
   const now = Date.now();

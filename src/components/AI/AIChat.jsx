@@ -95,26 +95,25 @@ function AIChat() {
   // Get AI status for performance display
   const status = getStatus();
 
-  // Don't render if AI is not available
+  // Don't render if AI is not available - now contained within right panel
   if (!isAIAvailable()) {
     return (
-      <div className="fixed bottom-4 right-4 bg-yellow-50 border border-yellow-200 rounded-lg p-4 max-w-sm">
+      <div className="bg-yellow-50 border-t border-yellow-200 p-3">
         <div className="flex items-start">
           <div className="flex-shrink-0">
-            <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+            <svg className="h-4 w-4 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
               <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
             </svg>
           </div>
           <div className="ml-3">
-            <h3 className="text-sm font-medium text-yellow-800">AI Not Available in Development</h3>
-            <div className="mt-1 text-sm text-yellow-700">
-              <p className="mb-2">To enable AI features:</p>
-              <ol className="list-decimal list-inside space-y-1 text-xs">
-                <li>Run: <code className="bg-yellow-100 px-1">npm install</code></li>
-                <li>Set: <code className="bg-yellow-100 px-1">export OPENAI_API_KEY="your-key"</code></li>
-                <li>Run: <code className="bg-yellow-100 px-1">npm run dev:full</code></li>
+            <h4 className="text-xs font-medium text-yellow-800">AI Not Available</h4>
+            <div className="mt-1 text-xs text-yellow-700">
+              <p className="mb-1">To enable AI features:</p>
+              <ol className="list-decimal list-inside space-y-0.5 text-xs">
+                <li><code className="bg-yellow-100 px-1">npm install</code></li>
+                <li><code className="bg-yellow-100 px-1">export OPENAI_API_KEY="key"</code></li>
+                <li><code className="bg-yellow-100 px-1">npm run dev:full</code></li>
               </ol>
-              <p className="mt-2 text-xs">All other canvas features work without AI!</p>
             </div>
           </div>
         </div>
@@ -123,15 +122,18 @@ function AIChat() {
   }
 
   return (
-    <div className="fixed bottom-4 right-4 z-50">
+    <div className="flex flex-col">
       {/* Chat Interface */}
       {isExpanded && (
-        <div className="mb-2 bg-white rounded-lg shadow-xl border border-gray-200 w-80 h-96 flex flex-col">
+        <div className="bg-white border-t border-gray-200 flex flex-col max-h-96">
           {/* Header */}
-          <div className="flex items-center justify-between p-4 border-b border-gray-200">
-            <div className="flex items-center space-x-2">
-              <div className="w-3 h-3 bg-green-400 rounded-full animate-pulse"></div>
-              <h3 className="font-semibold text-gray-900">AI Canvas Assistant</h3>
+          <div className="flex items-center justify-between p-3 border-b border-gray-200">
+            <div className="flex items-center">
+              <div className="w-2 h-2 bg-green-400 rounded-full mr-2"></div>
+              <div>
+                <h4 className="text-sm font-semibold text-gray-900">AI Assistant</h4>
+                <p className="text-xs text-gray-500">Canvas control</p>
+              </div>
             </div>
             
             <div className="flex items-center space-x-2">
@@ -160,7 +162,7 @@ function AIChat() {
           </div>
 
           {/* Messages */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-3">
+          <div className="flex-1 p-3 overflow-y-auto" ref={messagesEndRef}>
             {conversation.length === 0 && (
               <div className="text-center text-gray-500 py-8">
                 <svg className="w-8 h-8 mx-auto mb-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -228,36 +230,40 @@ function AIChat() {
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Input */}
-          <div className="border-t border-gray-200 p-4">
-            <form onSubmit={handleSubmit} className="flex space-x-2">
-              <input
-                ref={inputRef}
-                type="text"
-                value={inputMessage}
-                onChange={(e) => setInputMessage(e.target.value)}
-                placeholder="Tell me what to create..."
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 text-sm"
-                disabled={isProcessing}
-              />
+          {/* Input Section */}
+          <div className="border-t border-gray-200 p-3">
+            <form onSubmit={handleSubmit} className="space-y-2">
+              {/* Input field */}
+              <div className="flex space-x-1">
+                <input
+                  ref={inputRef}
+                  type="text"
+                  value={inputMessage}
+                  onChange={(e) => setInputMessage(e.target.value)}
+                  placeholder="Tell me what to create..."
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 text-sm min-w-0"
+                  disabled={isProcessing}
+                />
+                
+                <button
+                  type="button"
+                  onClick={() => setShowExamples(!showExamples)}
+                  className="px-2 py-2 text-gray-500 hover:text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 flex-shrink-0"
+                  title="Show examples"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </button>
+              </div>
               
-              <button
-                type="button"
-                onClick={() => setShowExamples(!showExamples)}
-                className="px-3 py-2 text-gray-500 hover:text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
-                title="Show examples"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </button>
-              
+              {/* Send button - full width */}
               <button
                 type="submit"
                 disabled={isProcessing || !inputMessage.trim()}
-                className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                className="w-full px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
               >
-                Send
+                {isProcessing ? 'Sending...' : 'Send'}
               </button>
             </form>
 
@@ -282,32 +288,40 @@ function AIChat() {
         </div>
       )}
 
-      {/* Toggle Button */}
-      <button
-        onClick={() => setIsExpanded(!isExpanded)}
-        className={`w-12 h-12 rounded-full shadow-lg flex items-center justify-center transition-all duration-200 ${
-          isExpanded 
-            ? 'bg-gray-500 hover:bg-gray-600' 
-            : 'bg-blue-500 hover:bg-blue-600'
-        } text-white`}
-        title={isExpanded ? 'Close AI Chat' : 'Open AI Chat'}
-      >
-        {isExpanded ? (
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        ) : (
-          <div className="relative">
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-3.582 8-8 8a8.955 8.955 0 01-2.697-.413l-3.178 1.589a.75.75 0 01-1.072-.71l.389-2.333A8 8 0 113 12z" />
-            </svg>
-            {/* Notification badge */}
-            {error && (
-              <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full"></div>
-            )}
-          </div>
-        )}
-      </button>
+      {/* Toggle Button - Contained within right panel */}
+      <div className="p-3 border-t border-gray-200 bg-gray-50">
+        <button
+          onClick={() => setIsExpanded(!isExpanded)}
+          className={`w-full py-2 px-3 rounded-lg transition-all duration-200 flex items-center justify-center text-sm font-medium ${
+            error 
+              ? 'bg-gray-500 hover:bg-gray-600 text-white' 
+              : isExpanded 
+                ? 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+                : 'bg-blue-500 hover:bg-blue-600 text-white'
+          }`}
+          title={isExpanded ? 'Close AI Chat' : 'Open AI Chat'}
+        >
+          {isExpanded ? (
+            <>
+              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+              Close AI Chat
+            </>
+          ) : (
+            <>
+              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-3.582 8-8 8a8.955 8.955 0 01-2.697-.413l-3.178 1.589a.75.75 0 01-1.072-.71l.389-2.333A8 8 0 113 12z" />
+              </svg>
+              AI Assistant
+              {/* Notification indicator */}
+              {error && (
+                <div className="ml-2 w-2 h-2 bg-red-400 rounded-full"></div>
+              )}
+            </>
+          )}
+        </button>
+      </div>
     </div>
   );
 }

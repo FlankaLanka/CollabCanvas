@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { usePresence } from '../hooks/usePresence';
 import { useAuth } from '../hooks/useAuth';
+import AIChat from './AI/AIChat';
 
 function OnlineUsers() {
   const { onlineUsers, loading, getTotalUserCount, isActive } = usePresence();
@@ -46,7 +47,7 @@ function OnlineUsers() {
 
   if (loading) {
     return (
-      <div className="w-48 sm:w-56 lg:w-64 bg-white border-l border-gray-300 flex flex-col">
+      <div className="w-56 sm:w-64 lg:w-72 bg-white border-l border-gray-300 flex flex-col">
         <div className="p-3 sm:p-4 border-b border-gray-300">
           <h3 className="text-xs sm:text-sm font-semibold text-gray-900">Online Users</h3>
         </div>
@@ -60,7 +61,7 @@ function OnlineUsers() {
   const totalUsers = getTotalUserCount();
 
   return (
-    <div className="w-48 sm:w-56 lg:w-64 bg-white border-l border-gray-300 flex flex-col">
+    <div className="w-56 sm:w-64 lg:w-72 bg-white border-l border-gray-300 flex flex-col h-full">
       {/* Header */}
       <div className="p-3 sm:p-4 border-b border-gray-300">
         <h3 className="text-xs sm:text-sm font-semibold text-gray-900">Online Users</h3>
@@ -149,18 +150,11 @@ function OnlineUsers() {
         )}
       </div>
 
-      {/* Footer info */}
-      {totalUsers > 0 && (
-        <div className="p-3 sm:p-4 pt-0">
-          <div className="text-xs text-gray-500 text-center">
-            <div className="flex items-center justify-center">
-              <div className="w-1 h-1 bg-green-400 rounded-full mr-1"></div>
-              <span className="hidden sm:inline">Real-time collaboration active</span>
-              <span className="sm:hidden">Real-time active</span>
-            </div>
-          </div>
-        </div>
-      )}
+      
+      {/* AI Chat Assistant - Always at bottom */}
+      <div className="mt-auto">
+        <AIChat />
+      </div>
     </div>
   );
 }

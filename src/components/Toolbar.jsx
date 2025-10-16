@@ -2,14 +2,12 @@ import { useCallback } from 'react';
 import { useCanvas } from '../contexts/ModernCanvasContext';
 import { SHAPE_TYPES, DEFAULT_SHAPE_PROPS } from '../utils/constants';
 
-function Toolbar() {
+function Toolbar({ showGrid, setShowGrid, snapToGrid, setSnapToGrid }) {
   const { 
     addShape, 
     deleteAllShapes, 
     shapes, 
-    stageRef, 
-    stageScale, 
-    stagePosition,
+    stageRef,
     isDrawingMode,
     toggleDrawingMode
   } = useCanvas();
@@ -31,20 +29,32 @@ function Toolbar() {
     const containerCenterX = containerRect.width / 2;
     const containerCenterY = containerRect.height / 2;
 
-    // Convert screen coordinates to canvas coordinates
-    const canvasX = (containerCenterX - stagePosition.x) / stageScale;
-    const canvasY = (containerCenterY - stagePosition.y) / stageScale;
+    // Convert screen coordinates to canvas coordinates (consistent with other transformations)
+    const stagePos = stage.position(); // Get current position directly from stage
+    const currentStageScale = stage.scaleX(); // Get current scale directly from stage
+    
+    const canvasX = (containerCenterX - stagePos.x) / currentStageScale;
+    const canvasY = (containerCenterY - stagePos.y) / currentStageScale;
 
     // Add small random offset to avoid overlapping shapes
     const offset = 20;
     const randomX = (Math.random() - 0.5) * offset;
     const randomY = (Math.random() - 0.5) * offset;
 
+    console.log('🎯 Viewport center calculated:', {
+      containerSize: { width: containerRect.width, height: containerRect.height },
+      containerCenter: { x: containerCenterX, y: containerCenterY },
+      stagePos: stagePos,
+      stageScale: currentStageScale,
+      canvasCenter: { x: canvasX, y: canvasY },
+      finalCenter: { x: canvasX + randomX, y: canvasY + randomY }
+    });
+
     return {
       x: canvasX + randomX,
       y: canvasY + randomY
     };
-  }, [stageRef, stageScale, stagePosition]);
+  }, [stageRef]);
 
   // Create a rectangle
   const handleAddRectangle = useCallback(() => {
@@ -96,17 +106,11 @@ function Toolbar() {
     const center = getViewportCenter();
     const defaults = DEFAULT_SHAPE_PROPS[SHAPE_TYPES.BEZIER_CURVE];
     
-    // Position the anchor points relative to the center
-    const anchorPoints = defaults.anchorPoints.map(point => ({
-      x: center.x + point.x - 75, // Offset to center the curve
-      y: center.y + point.y
-    }));
-    
     addShape({
       type: SHAPE_TYPES.BEZIER_CURVE,
-      x: center.x - 75, // Position for curve center
+      x: center.x, // Position at center (anchor points are now centered around 0,0)
       y: center.y,
-      anchorPoints: anchorPoints,
+      anchorPoints: defaults.anchorPoints, // Use default centered anchor points
       stroke: defaults.stroke,
       strokeWidth: defaults.strokeWidth,
       fill: defaults.fill,
@@ -327,6 +331,37 @@ function Toolbar() {
           </div>
         </button>
       ))}
+
+      {/* Canvas Settings Section */}
+      <div className="mt-4 pt-4 border-t border-gray-300">
+        <div className="text-xs font-medium text-gray-700 mb-3 text-center">Canvas</div>
+        
+        {/* Grid Toggle */}
+        <div className="mb-3">
+          <label className="flex items-center space-x-2 cursor-pointer text-sm">
+            <input
+              type="checkbox"
+              checked={showGrid}
+              onChange={(e) => setShowGrid(e.target.checked)}
+              className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
+            />
+            <span className="text-gray-700">Grid</span>
+          </label>
+        </div>
+        
+        {/* Snap to Grid Toggle */}
+        <div className="mb-2">
+          <label className="flex items-center space-x-2 cursor-pointer text-sm">
+            <input
+              type="checkbox"
+              checked={snapToGrid}
+              onChange={(e) => setSnapToGrid(e.target.checked)}
+              className="w-4 h-4 text-green-600 bg-gray-100 border-gray-300 rounded focus:ring-green-500"
+            />
+            <span className="text-gray-700">Snap</span>
+          </label>
+        </div>
+      </div>
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '../../hooks/useAuth';
+import InteractionGuide from '../Canvas/InteractionGuide';
 
 function Navbar() {
   const { currentUser, logout } = useAuth();
@@ -64,6 +65,9 @@ function Navbar() {
                 <span className="sm:hidden">Collab</span>
               </h1>
             </div>
+            
+            {/* Help Guide - Moved from Canvas overlay to navbar */}
+            <InteractionGuide />
           </div>
 
           {/* Right side - User menu */}

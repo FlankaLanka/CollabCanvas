@@ -7,29 +7,237 @@ import { SHAPE_TYPES, DEFAULT_SHAPE_PROPS, COLOR_PALETTE } from '../utils/consta
 export class CanvasAPI {
   constructor(canvasContext) {
     this.canvas = canvasContext;
+    
+    // Track recently created shapes for "these shapes" references
+    this.recentlyCreated = [];
+    this.maxRecentShapes = 10; // Keep track of last 10 operations
+    
     console.log('🔧 CanvasAPI initialized with context:', {
       hasShapes: !!canvasContext.shapes,
       shapesCount: canvasContext.shapes?.length || 0,
       hasSelectedIds: !!canvasContext.selectedIds,
+      hasStore: !!canvasContext.store,
       contextKeys: Object.keys(canvasContext)
     });
+  }
+
+  /**
+   * Refresh canvas context to get latest data
+   */
+  refreshContext() {
+    // Force a refresh if the canvas has reactive capabilities
+    if (this.canvas.store && typeof this.canvas.store.getState === 'function') {
+      // Zustand store - get fresh state
+      const state = this.canvas.store.getState();
+      console.log('🔄 Refreshing canvas context from store:', {
+        shapesInStore: state.shapes?.size || 0
+      });
+    }
+  }
+
+  /**
+   * Track recently created shapes for "these shapes" references
+   */
+  _trackRecentlyCreated(shapes) {
+    const shapesToTrack = Array.isArray(shapes) ? shapes : [shapes];
+    
+    // Add to front of array with timestamp
+    const tracked = {
+      shapes: shapesToTrack,
+      timestamp: Date.now(),
+      operation: 'create'
+    };
+    
+    this.recentlyCreated.unshift(tracked);
+    
+    // Keep only the most recent operations
+    if (this.recentlyCreated.length > this.maxRecentShapes) {
+      this.recentlyCreated = this.recentlyCreated.slice(0, this.maxRecentShapes);
+    }
+    
+    console.log('🔖 Tracked recently created shapes:', {
+      count: shapesToTrack.length,
+      recentOperations: this.recentlyCreated.length
+    });
+  }
+
+  /**
+   * Get recently created shapes for "these shapes" references
+   */
+  getRecentlyCreatedShapes(maxAge = 30000) { // 30 seconds default
+    const now = Date.now();
+    const recent = this.recentlyCreated
+      .filter(op => (now - op.timestamp) < maxAge)
+      .flatMap(op => op.shapes)
+      .filter(shape => shape && shape.id); // Ensure valid shapes
+    
+    console.log('📋 Retrieved recently created shapes:', {
+      count: recent.length,
+      ids: recent.map(s => this.extractFriendlyId(s.id))
+    });
+    
+    return recent;
+  }
+
+  /**
+   * Resolve "these shapes" reference to actual shapes
+   */
+  resolveTheseShapes() {
+    // Try selected shapes first
+    const selectedShapes = this.canvas.getSelectedShapes ? this.canvas.getSelectedShapes() : [];
+    if (selectedShapes && selectedShapes.length > 0) {
+      console.log('📌 Using selected shapes for "these shapes":', selectedShapes.length);
+      return selectedShapes;
+    }
+    
+    // Fall back to recently created shapes
+    const recentShapes = this.getRecentlyCreatedShapes();
+    if (recentShapes.length > 0) {
+      console.log('🕒 Using recently created shapes for "these shapes":', recentShapes.length);
+      return recentShapes;
+    }
+    
+    console.warn('⚠️ No shapes found for "these shapes" reference');
+    return [];
+  }
+
+  /**
+   * Check if a position would cause a collision with existing shapes
+   */
+  checkCollision(x, y, width = 100, height = 100, excludeIds = []) {
+    const shapes = this.getCurrentShapes();
+    const buffer = 20; // Minimum space between shapes
+    
+    for (const shape of shapes) {
+      if (excludeIds.includes(shape.id)) continue;
+      
+      // Calculate shape bounds
+      let shapeLeft, shapeRight, shapeTop, shapeBottom;
+      
+      if (shape.type === SHAPE_TYPES.CIRCLE) {
+        const radiusX = shape.radiusX || 50;
+        const radiusY = shape.radiusY || 50;
+        shapeLeft = shape.x - radiusX;
+        shapeRight = shape.x + radiusX;
+        shapeTop = shape.y - radiusY;
+        shapeBottom = shape.y + radiusY;
+      } else {
+        // Rectangle, text, etc.
+        const shapeWidth = shape.width || 100;
+        const shapeHeight = shape.height || 100;
+        shapeLeft = shape.x;
+        shapeRight = shape.x + shapeWidth;
+        shapeTop = shape.y;
+        shapeBottom = shape.y + shapeHeight;
+      }
+      
+      // Check if new shape would overlap (with buffer)
+      const newLeft = x;
+      const newRight = x + width;
+      const newTop = y;
+      const newBottom = y + height;
+      
+      const hasCollision = !(
+        newRight + buffer < shapeLeft ||
+        newLeft - buffer > shapeRight ||
+        newBottom + buffer < shapeTop ||
+        newTop - buffer > shapeBottom
+      );
+      
+      if (hasCollision) {
+        console.log('💥 Collision detected with shape:', this.extractFriendlyId(shape.id));
+        return { collision: true, shape };
+      }
+    }
+    
+    return { collision: false };
+  }
+
+  /**
+   * Find a collision-free position near the desired location
+   */
+  findSafePosition(desiredX, desiredY, width = 100, height = 100, maxAttempts = 10) {
+    // First check if desired position is already safe
+    const initialCheck = this.checkCollision(desiredX, desiredY, width, height);
+    if (!initialCheck.collision) {
+      return { x: desiredX, y: desiredY, adjusted: false };
+    }
+    
+    console.log('🔄 Finding safe position near:', desiredX, desiredY);
+    
+    // Try positions in expanding spiral pattern
+    const stepSize = Math.max(width, height) + 20;
+    
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      const radius = attempt * stepSize;
+      const angles = [0, Math.PI/2, Math.PI, 3*Math.PI/2, Math.PI/4, 3*Math.PI/4, 5*Math.PI/4, 7*Math.PI/4];
+      
+      for (const angle of angles) {
+        const testX = desiredX + Math.cos(angle) * radius;
+        const testY = desiredY + Math.sin(angle) * radius;
+        
+        const collision = this.checkCollision(testX, testY, width, height);
+        if (!collision.collision) {
+          console.log('✅ Found safe position at:', testX, testY, 'after', attempt, 'attempts');
+          return { x: testX, y: testY, adjusted: true };
+        }
+      }
+    }
+    
+    // Fallback: use original position with warning
+    console.warn('⚠️ Could not find collision-free position, using original');
+    return { x: desiredX, y: desiredY, adjusted: false, warning: true };
   }
 
   /**
    * Get current shapes from canvas context (always fresh)
    */
   getCurrentShapes() {
-    const shapes = this.canvas.shapes || [];
-    console.log('🔍 getCurrentShapes called:', {
+    let shapes = [];
+    
+    // Try multiple sources to get the most current shapes
+    // 1. Direct access to store (most reliable)
+    if (this.canvas.store && this.canvas.store.shapes) {
+      if (this.canvas.store.shapes instanceof Map) {
+        shapes = Array.from(this.canvas.store.shapes.values());
+        console.log('📊 Using shapes from store.shapes Map');
+      }
+    }
+    
+    // 2. Fallback to processed shapes array from context
+    if (shapes.length === 0 && this.canvas.shapes) {
+      if (this.canvas.shapes instanceof Map) {
+        shapes = Array.from(this.canvas.shapes.values());
+        console.log('📊 Using shapes from context.shapes Map');
+      } else if (Array.isArray(this.canvas.shapes)) {
+        shapes = this.canvas.shapes;
+        console.log('📊 Using shapes from context.shapes Array');
+      }
+    }
+    
+    // 3. Final fallback - empty array
+    if (shapes.length === 0) {
+      console.warn('⚠️ No shapes found in any source. Context keys:', Object.keys(this.canvas));
+      console.warn('⚠️ Store details:', {
+        hasStore: !!this.canvas.store,
+        storeKeys: this.canvas.store ? Object.keys(this.canvas.store) : 'N/A',
+        storeShapesType: this.canvas.store?.shapes ? typeof this.canvas.store.shapes : 'N/A',
+        storeShapesSize: this.canvas.store?.shapes?.size || 'N/A'
+      });
+    }
+    
+    console.log('🔍 getCurrentShapes result:', {
       shapesCount: shapes.length,
-      shapes: shapes.map(s => ({ 
+      shapes: shapes.slice(0, 3).map(s => ({ 
         id: s.id, 
         friendlyId: this.extractFriendlyId(s.id),
         type: s.type, 
         x: s.x, 
         y: s.y 
-      }))
+      })),
+      truncated: shapes.length > 3 ? `... and ${shapes.length - 3} more` : false
     });
+    
     return shapes;
   }
 
@@ -143,12 +351,15 @@ export class CanvasAPI {
         }
       }
       
-      // Check text content
-      if (shape.text && desc.includes(shape.text.toLowerCase())) {
-        matches++;
-        totalCriteria++;
-        console.log(`✅ Text match: "${shape.text}"`);
-      }
+        // Check text content (both exact and partial matches)
+        if (shape.text) {
+          const shapeTextLower = shape.text.toLowerCase();
+          if (desc.includes(shapeTextLower) || shapeTextLower.includes(desc.replace(/text|label|input|field/g, '').trim())) {
+            matches++;
+            totalCriteria++;
+            console.log(`✅ Text match: "${shape.text}"`);
+          }
+        }
       
       // Check size descriptors
       if (desc.includes('large') || desc.includes('big')) {
@@ -442,18 +653,62 @@ export class CanvasAPI {
     radiusY,
     fill,
     text,
-    fontSize
+    fontSize,
+    skipCollisionCheck = false
   }) {
     const defaults = DEFAULT_SHAPE_PROPS[shapeType];
     if (!defaults) {
       throw new Error(`Invalid shape type: ${shapeType}`);
     }
 
+    // Calculate dimensions for collision detection
+    let shapeWidth = width || defaults.width || (radiusX ? radiusX * 2 : 0) || 100;
+    let shapeHeight = height || defaults.height || (radiusY ? radiusY * 2 : 0) || 100;
+    
+    // Use viewport center if no position specified
+    if (x === undefined || y === undefined) {
+      const center = this.getViewportCenter();
+      x = x ?? center.x;
+      y = y ?? center.y;
+    }
+    
+    // Check for collisions and adjust position if needed (unless creating multiple shapes)
+    let finalX = x;
+    let finalY = y;
+    let positionAdjusted = false;
+    
+    if (!skipCollisionCheck) {
+      const safePosition = this.findSafePosition(x, y, shapeWidth, shapeHeight);
+      finalX = safePosition.x;
+      finalY = safePosition.y;
+      positionAdjusted = safePosition.adjusted;
+      
+      if (positionAdjusted) {
+        console.log('📍 Adjusted position to avoid collision:', `(${x}, ${y})` + ' → ' + `(${finalX}, ${finalY})`);
+      }
+    }
+
+    // Calculate fill color based on shape type
+    let finalFill;
+    if (shapeType === SHAPE_TYPES.TEXT || shapeType === SHAPE_TYPES.TEXT_INPUT) {
+      // Text-specific logic: default to black
+      if (!fill) {
+        finalFill = '#000000'; // Default text to black
+      } else if (fill && this.isDarkColor(fill)) {
+        finalFill = '#FFFFFF'; // White text on dark backgrounds
+      } else {
+        finalFill = this.parseColor(fill); // Use specified color
+      }
+    } else {
+      // Non-text shapes use normal logic
+      finalFill = this.parseColor(fill) || defaults.fill;
+    }
+
     const newShape = {
         type: shapeType,
-      x: x || 0,
-      y: y || 0,
-      fill: this.parseColor(fill) || defaults.fill,
+      x: finalX,
+      y: finalY,
+      fill: finalFill,
       zIndex: (this.canvas.shapes?.length || 0) + 1
       };
 
@@ -476,13 +731,7 @@ export class CanvasAPI {
         newShape.fontFamily = defaults.fontFamily;
         newShape.width = width || defaults.width;
         newShape.height = height || defaults.height;
-        
-        // Ensure text is always dark unless explicitly specified or background is dark
-        if (!fill) {
-          newShape.fill = '#1F2937'; // Dark text for readability
-        } else if (fill && this.isDarkColor(fill)) {
-          newShape.fill = '#FFFFFF'; // White text on dark backgrounds
-        }
+        // Text color logic is now handled above
         break;
       
       case SHAPE_TYPES.TRIANGLE:
@@ -520,6 +769,9 @@ export class CanvasAPI {
 
     // Add to canvas using context method
     await this.canvas.addShape(newShape);
+    
+    // Track for "these shapes" references
+    this._trackRecentlyCreated(newShape);
     
     console.log('✅ Created shape:', newShape.type, 'at', `(${newShape.x}, ${newShape.y})`);
     return newShape;
@@ -658,37 +910,123 @@ export class CanvasAPI {
   }
 
   /**
-   * CREATE MULTIPLE SHAPES - Layout function
+   * CHANGE SHAPE TEXT - Manipulation function (supports friendly IDs)
+   */
+  async changeShapeText(shapeIdInput, newText) {
+    // Try natural language description first, then fall back to ID
+    let shape = this.findShapeByDescription(shapeIdInput);
+    if (!shape) {
+      shape = this.findShape(shapeIdInput);
+    }
+    
+    if (!shape) {
+      throw new Error(`Shape not found: "${shapeIdInput}". Try describing it by its current text or type (e.g., "text that says Hello", "username label").`);
+    }
+
+    // Verify this is a text shape
+    if (shape.type !== SHAPE_TYPES.TEXT && shape.type !== SHAPE_TYPES.TEXT_INPUT) {
+      throw new Error(`Shape "${shapeIdInput}" is not a text shape. It's a ${shape.type}. Only text shapes can have their text changed.`);
+    }
+
+    await this.canvas.updateShape(shape.id, { text: newText });
+    const description = this.getShapeDescription(shape);
+    console.log('✅ Changed text content:', description, 'to:', `"${newText}"`);
+    return {
+      shapeId: shape.id, 
+      description: description, 
+      text: newText,
+      oldText: shape.text 
+    };
+  }
+
+  /**
+   * CREATE MULTIPLE SHAPES - Layout function with smart spacing
    */
   async createMultipleShapes({
     shapeType,
     count,
     arrangement = 'row',
+    gridRows,
+    gridCols,
     startX,
     startY,
-    spacing = 80,
-    fill
+    spacing,
+    fill,
+    width,
+    height
   }) {
     const shapes = [];
     const defaults = DEFAULT_SHAPE_PROPS[shapeType];
     const color = this.parseColor(fill) || defaults.fill;
     
-    // Calculate positions based on arrangement
+    // Calculate shape dimensions for smart spacing
+    const shapeWidth = width || defaults.width || defaults.radiusX * 2 || 100;
+    const shapeHeight = height || defaults.height || defaults.radiusY * 2 || 100;
+    
+    // Calculate smart spacing if not provided
+    let calculatedSpacing = spacing;
+    if (!calculatedSpacing) {
+      // Dynamic spacing based on shape size with buffer
+      const buffer = Math.min(shapeWidth, shapeHeight) * 0.3; // 30% buffer
+      calculatedSpacing = Math.max(shapeWidth, shapeHeight) + buffer;
+      console.log('📏 Calculated smart spacing:', calculatedSpacing, 'for shapes:', `${shapeWidth}x${shapeHeight}`);
+    }
+    
+    // Use viewport center if no start position specified
+    if (startX === undefined || startY === undefined) {
+      const center = this.getViewportCenter();
+      startX = startX || center.x;
+      startY = startY || center.y;
+      console.log('🎯 Using viewport center for positioning:', center);
+    }
+    
+    // For grid arrangement, calculate actual layout
+    let rows, cols;
+    if (arrangement === 'grid') {
+      if (gridRows && gridCols) {
+        rows = gridRows;
+        cols = gridCols;
+        // Update count to match grid if needed
+        count = rows * cols;
+      } else {
+        // Auto-calculate grid dimensions
+        cols = Math.ceil(Math.sqrt(count));
+        rows = Math.ceil(count / cols);
+      }
+      console.log('🏗️ Grid layout:', `${rows}x${cols}`, `(${count} total shapes)`);
+    }
+    
+    // Calculate starting position to center the entire arrangement
+    let adjustedStartX = startX;
+    let adjustedStartY = startY;
+    
+    if (arrangement === 'row') {
+      // Center the row horizontally
+      adjustedStartX = startX - ((count - 1) * calculatedSpacing) / 2;
+    } else if (arrangement === 'column') {
+      // Center the column vertically
+      adjustedStartY = startY - ((count - 1) * calculatedSpacing) / 2;
+    } else if (arrangement === 'grid') {
+      // Center the entire grid
+      adjustedStartX = startX - ((cols - 1) * calculatedSpacing) / 2;
+      adjustedStartY = startY - ((rows - 1) * calculatedSpacing) / 2;
+    }
+    
+    // Create shapes with calculated positions
     for (let i = 0; i < count; i++) {
-      let x = startX;
-      let y = startY;
+      let x = adjustedStartX;
+      let y = adjustedStartY;
       
       switch (arrangement) {
         case 'row':
-          x = startX + (i * spacing);
+          x = adjustedStartX + (i * calculatedSpacing);
           break;
         case 'column':
-          y = startY + (i * spacing);
+          y = adjustedStartY + (i * calculatedSpacing);
           break;
         case 'grid':
-          const cols = Math.ceil(Math.sqrt(count));
-          x = startX + ((i % cols) * spacing);
-          y = startY + (Math.floor(i / cols) * spacing);
+          x = adjustedStartX + ((i % cols) * calculatedSpacing);
+          y = adjustedStartY + (Math.floor(i / cols) * calculatedSpacing);
           break;
       }
       
@@ -696,14 +1034,26 @@ export class CanvasAPI {
         shapeType,
         x,
         y,
-        fill: color
+        width,
+        height,
+        fill: color,
+        skipCollisionCheck: true // Skip individual collision checks since we handle spacing
       });
       
       shapes.push(shape);
     }
     
-    console.log('✅ Created', count, shapeType, 'shapes in', arrangement, 'arrangement');
-    return shapes;
+    // Track all created shapes for "these shapes" references
+    this._trackRecentlyCreated(shapes);
+    
+    console.log('✅ Created', count, shapeType, 'shapes in', arrangement, 'arrangement with smart spacing:', calculatedSpacing);
+    return {
+      shapes,
+      arrangement,
+      shapeType,
+      count,
+      spacing: calculatedSpacing
+    };
   }
 
   /**
@@ -750,58 +1100,123 @@ export class CanvasAPI {
   }
 
   /**
-   * CREATE LOGIN FORM - Complex function
+   * CREATE LOGIN FORM - Enhanced user-friendly form with proper alignment
    */
-  async createLoginForm({ x, y, width = 300 }) {
-    const formElements = [];
-    const spacing = 20;
-    let currentY = y;
+  async createLoginForm({ x, y, width = 320 }) {
+    // Use viewport center if no position specified
+    if (x === undefined || y === undefined) {
+      const center = this.getViewportCenter();
+      x = x ?? center.x - width / 2; // Center the form
+      y = y ?? center.y - 180; // Position above center
+    }
     
-    // Title
+    // Enhanced form dimensions and spacing
+    const formHeight = 320;
+    const padding = 24;
+    const fieldSpacing = 20;
+    const labelSpacing = 8;
+    
+    // Check for collisions and adjust position if needed
+    const safePosition = this.findSafePosition(x, y, width, formHeight);
+    const adjustedX = safePosition.x;
+    const adjustedY = safePosition.y;
+    
+    if (safePosition.adjusted) {
+      console.log('📍 Adjusted login form position to avoid collision');
+    }
+    
+    const formElements = [];
+    let currentY = adjustedY;
+    
+    // Form Background Container
+    const formBackground = await this.createShape({
+      shapeType: SHAPE_TYPES.RECTANGLE,
+      x: adjustedX,
+      y: adjustedY,
+      width: width,
+      height: formHeight,
+      fill: '#FFFFFF',
+      stroke: '#E5E7EB',
+      strokeWidth: 1,
+      skipCollisionCheck: true
+    });
+    formElements.push(formBackground);
+    
+    // Form Shadow (subtle depth)
+    const formShadow = await this.createShape({
+      shapeType: SHAPE_TYPES.RECTANGLE,
+      x: adjustedX + 2,
+      y: adjustedY + 2,
+      width: width,
+      height: formHeight,
+      fill: '#F3F4F6',
+      skipCollisionCheck: true
+    });
+    formElements.push(formShadow);
+    
+    // Move form background to front
+    formBackground.zIndex = 10;
+    formShadow.zIndex = 5;
+    
+    currentY += padding + 20; // Top padding + title space
+    
+    // Title - Properly centered
     const title = await this.createShape({
       shapeType: SHAPE_TYPES.TEXT,
-      x: x + width/2 - 50,
+      x: adjustedX + width/2 - 30, // Better centering
       y: currentY,
-      text: 'Login',
-      fontSize: 24,
-      fill: '#1F2937'
+      text: 'Welcome Back',
+      fontSize: 28,
+      fill: '#1F2937',
+      skipCollisionCheck: true
     });
     formElements.push(title);
     currentY += 50;
 
-    // Username label  
+    // Username Section
+    currentY += labelSpacing;
+    
+    // Username label - Better positioning
     const usernameLabel = await this.createShape({
       shapeType: SHAPE_TYPES.TEXT,
-      x: x,
+      x: adjustedX + padding,
       y: currentY,
-      text: 'Username:',
+      text: 'Username',
       fontSize: 14,
-      fill: '#374151'
+      fill: '#374151',
+      skipCollisionCheck: true
     });
     formElements.push(usernameLabel);
     currentY += 25;
     
-    // Username input
+    // Username input - Better styling
     const usernameInput = await this.createShape({
       shapeType: SHAPE_TYPES.TEXT_INPUT,
-      x: x,
+      x: adjustedX + padding,
       y: currentY,
-      width: width,
-      height: 40,
+      width: width - (padding * 2),
+      height: 44,
       text: '',
-      fill: '#1F2937' // Dark text for readability
+      fill: '#F9FAFB',
+      stroke: '#D1D5DB',
+      strokeWidth: 1,
+      skipCollisionCheck: true
     });
     formElements.push(usernameInput);
-    currentY += 60;
+    currentY += 44 + fieldSpacing;
 
+    // Password Section
+    currentY += labelSpacing;
+    
     // Password label
     const passwordLabel = await this.createShape({
       shapeType: SHAPE_TYPES.TEXT,
-      x: x,
+      x: adjustedX + padding,
       y: currentY,
-      text: 'Password:',
+      text: 'Password',
       fontSize: 14,
-      fill: '#374151'
+      fill: '#374151',
+      skipCollisionCheck: true
     });
     formElements.push(passwordLabel);
     currentY += 25;
@@ -809,132 +1224,361 @@ export class CanvasAPI {
     // Password input
     const passwordInput = await this.createShape({
       shapeType: SHAPE_TYPES.TEXT_INPUT,
-      x: x,
+      x: adjustedX + padding,
       y: currentY,
-      width: width,
-      height: 40,
+      width: width - (padding * 2),
+      height: 44,
       text: '',
-      fill: '#1F2937' // Dark text for readability
+      fill: '#F9FAFB',
+      stroke: '#D1D5DB',
+      strokeWidth: 1,
+      skipCollisionCheck: true
     });
     formElements.push(passwordInput);
-    currentY += 60;
+    currentY += 44 + fieldSpacing + 10;
 
-    // Submit button
+    // Submit Button - Better positioning and styling
+    const buttonWidth = 140;
+    const buttonHeight = 44;
     const submitButton = await this.createShape({
       shapeType: SHAPE_TYPES.RECTANGLE,
-      x: x + width/2 - 60,
+      x: adjustedX + (width - buttonWidth) / 2, // Perfectly centered
       y: currentY,
-      width: 120,
-      height: 40,
-      fill: '#3B82F6'
+      width: buttonWidth,
+      height: buttonHeight,
+      fill: '#3B82F6',
+      stroke: '#2563EB',
+      strokeWidth: 1,
+      skipCollisionCheck: true
     });
     formElements.push(submitButton);
     
-    // Button text
+    // Button text - Better centering
     const buttonText = await this.createShape({
       shapeType: SHAPE_TYPES.TEXT,
-      x: x + width/2 - 25,
-      y: currentY + 12,
-      text: 'Login',
+      x: adjustedX + width/2 - 20, // Better text centering
+      y: currentY + 14,
+      text: 'Sign In',
       fontSize: 16,
-      fill: '#FFFFFF'
+      fill: '#FFFFFF',
+      skipCollisionCheck: true
     });
     formElements.push(buttonText);
     
-    console.log('✅ Created login form with', formElements.length, 'elements');
-    return formElements;
+    // Optional: Add "Forgot Password?" link
+    currentY += buttonHeight + 15;
+    const forgotPassword = await this.createShape({
+      shapeType: SHAPE_TYPES.TEXT,
+      x: adjustedX + width/2 - 50,
+      y: currentY,
+      text: 'Forgot Password?',
+      fontSize: 12,
+      fill: '#6B7280',
+      skipCollisionCheck: true
+    });
+    formElements.push(forgotPassword);
+    
+    // Track all form elements for "these shapes" references
+    this._trackRecentlyCreated(formElements);
+    
+    console.log('✅ Created enhanced login form with', formElements.length, 'elements');
+    return { components: formElements };
   }
 
   /**
-   * CREATE NAVIGATION BAR - Complex function
+   * CREATE NAVIGATION BAR - Enhanced professional navigation
    */
   async createNavigationBar({ x, y, menuItems, width = 600 }) {
-    const navElements = [];
-    const itemWidth = width / menuItems.length;
+    // Use viewport center if no position specified
+    if (x === undefined || y === undefined) {
+      const center = this.getViewportCenter();
+      x = x ?? center.x - width / 2;
+      y = y ?? center.y - 200;
+    }
     
-    // Background bar
+    // Enhanced navigation dimensions
+    const navHeight = 60;
+    const itemWidth = width / menuItems.length;
+    const padding = 20;
+    
+    // Check for collisions and adjust position if needed
+    const safePosition = this.findSafePosition(x, y, width, navHeight);
+    const adjustedX = safePosition.x;
+    const adjustedY = safePosition.y;
+    
+    if (safePosition.adjusted) {
+      console.log('📍 Adjusted navigation bar position to avoid collision');
+    }
+    
+    const navElements = [];
+    
+    // Navigation shadow for depth
+    const navShadow = await this.createShape({
+      shapeType: SHAPE_TYPES.RECTANGLE,
+      x: adjustedX + 2,
+      y: adjustedY + 2,
+      width: width,
+      height: navHeight,
+      fill: '#F3F4F6',
+      skipCollisionCheck: true
+    });
+    navElements.push(navShadow);
+    
+    // Main navigation background
     const navBg = await this.createShape({
       shapeType: SHAPE_TYPES.RECTANGLE,
-      x: x,
-      y: y,
+      x: adjustedX,
+      y: adjustedY,
       width: width,
-      height: 50,
-      fill: '#1F2937'
+      height: navHeight,
+      fill: '#FFFFFF',
+      stroke: '#E5E7EB',
+      strokeWidth: 1,
+      skipCollisionCheck: true
     });
     navElements.push(navBg);
     
-    // Menu items
+    // Set proper z-index for layering
+    navBg.zIndex = 10;
+    navShadow.zIndex = 5;
+    
+    // Menu items with enhanced styling
     for (let i = 0; i < menuItems.length; i++) {
-      const itemX = x + (i * itemWidth) + itemWidth/2 - 30;
+      const itemX = adjustedX + (i * itemWidth) + itemWidth/2;
+      const itemY = adjustedY + navHeight/2;
+      
+      // Menu item background (subtle hover effect)
+      const itemBg = await this.createShape({
+        shapeType: SHAPE_TYPES.RECTANGLE,
+        x: adjustedX + (i * itemWidth) + 5,
+        y: adjustedY + 5,
+        width: itemWidth - 10,
+        height: navHeight - 10,
+        fill: '#F8FAFC',
+        stroke: '#E2E8F0',
+        strokeWidth: 1,
+        skipCollisionCheck: true
+      });
+      navElements.push(itemBg);
+      
+      // Menu item text
       const menuText = await this.createShape({
         shapeType: SHAPE_TYPES.TEXT,
-        x: itemX,
-        y: y + 15,
+        x: itemX - (menuItems[i].length * 4), // Better text centering
+        y: itemY - 8,
         text: menuItems[i],
         fontSize: 16,
-        fill: '#FFFFFF'
+        fill: '#1F2937',
+        skipCollisionCheck: true
       });
       navElements.push(menuText);
     }
     
-    console.log('✅ Created navigation bar with', menuItems.length, 'menu items');
-    return navElements;
+    // Optional: Add logo/brand area
+    const logoArea = await this.createShape({
+      shapeType: SHAPE_TYPES.TEXT,
+      x: adjustedX + 20,
+      y: adjustedY + 20,
+      text: 'Brand',
+      fontSize: 20,
+      fill: '#3B82F6',
+      skipCollisionCheck: true
+    });
+    navElements.push(logoArea);
+    
+    // Track all navigation elements for "these shapes" references
+    this._trackRecentlyCreated(navElements);
+    
+    console.log('✅ Created enhanced navigation bar with', menuItems.length, 'menu items');
+    return { components: navElements };
   }
 
   /**
-   * CREATE CARD LAYOUT - Complex function
+   * CREATE CARD LAYOUT - Enhanced card with image, title, and description
    */
-  async createCardLayout({ x, y, title, content = '', width = 250, height = 200 }) {
+  async createCardLayout({ x, y, title, content = '', image = '', width = 280, height = 320 }) {
+    // Use viewport center if no position specified
+    if (x === undefined || y === undefined) {
+      const center = this.getViewportCenter();
+      x = x ?? center.x - width / 2;
+      y = y ?? center.y - height / 2;
+    }
+    
+    // Enhanced card dimensions
+    const cardPadding = 20;
+    const imageHeight = 120;
+    const titleHeight = 40;
+    const contentHeight = height - imageHeight - titleHeight - (cardPadding * 3);
+    
+    // Check for collisions and adjust position if needed
+    const safePosition = this.findSafePosition(x, y, width, height);
+    const adjustedX = safePosition.x;
+    const adjustedY = safePosition.y;
+    
+    if (safePosition.adjusted) {
+      console.log('📍 Adjusted card layout position to avoid collision');
+    }
+    
     const cardElements = [];
     
-    // Card background
+    // Card shadow for depth
+    const cardShadow = await this.createShape({
+      shapeType: SHAPE_TYPES.RECTANGLE,
+      x: adjustedX + 3,
+      y: adjustedY + 3,
+      width: width,
+      height: height,
+      fill: '#F3F4F6',
+      skipCollisionCheck: true
+    });
+    cardElements.push(cardShadow);
+    
+    // Main card background
     const cardBg = await this.createShape({
       shapeType: SHAPE_TYPES.RECTANGLE,
-      x: x,
-      y: y,
+      x: adjustedX,
+      y: adjustedY,
       width: width,
       height: height,
-      fill: '#FFFFFF'
+      fill: '#FFFFFF',
+      stroke: '#E5E7EB',
+      strokeWidth: 1,
+      skipCollisionCheck: true
     });
     cardElements.push(cardBg);
-
-    // Card border
-    const cardBorder = await this.createShape({
-      shapeType: SHAPE_TYPES.RECTANGLE,
-      x: x,
-      y: y,
-      width: width,
-      height: height,
-      fill: '#E5E7EB'
-    });
-    cardElements.push(cardBorder);
-
-    // Title
+    
+    // Set proper z-index for layering
+    cardBg.zIndex = 10;
+    cardShadow.zIndex = 5;
+    
+    let currentY = adjustedY + cardPadding;
+    
+    // Image placeholder/area
+    if (image) {
+      // Image background
+      const imageBg = await this.createShape({
+        shapeType: SHAPE_TYPES.RECTANGLE,
+        x: adjustedX + cardPadding,
+        y: currentY,
+        width: width - (cardPadding * 2),
+        height: imageHeight,
+        fill: '#F8FAFC',
+        stroke: '#E2E8F0',
+        strokeWidth: 1,
+        skipCollisionCheck: true
+      });
+      cardElements.push(imageBg);
+      
+      // Image placeholder text
+      const imagePlaceholder = await this.createShape({
+        shapeType: SHAPE_TYPES.TEXT,
+        x: adjustedX + width/2 - 30,
+        y: currentY + imageHeight/2 - 8,
+        text: '📷 Image',
+        fontSize: 16,
+        fill: '#9CA3AF',
+        skipCollisionCheck: true
+      });
+      cardElements.push(imagePlaceholder);
+    } else {
+      // Default image placeholder
+      const imageBg = await this.createShape({
+        shapeType: SHAPE_TYPES.RECTANGLE,
+        x: adjustedX + cardPadding,
+        y: currentY,
+        width: width - (cardPadding * 2),
+        height: imageHeight,
+        fill: '#F8FAFC',
+        stroke: '#E2E8F0',
+        strokeWidth: 1,
+        skipCollisionCheck: true
+      });
+      cardElements.push(imageBg);
+      
+      const imagePlaceholder = await this.createShape({
+        shapeType: SHAPE_TYPES.TEXT,
+        x: adjustedX + width/2 - 25,
+        y: currentY + imageHeight/2 - 8,
+        text: '📷 Image',
+        fontSize: 16,
+        fill: '#9CA3AF',
+        skipCollisionCheck: true
+      });
+      cardElements.push(imagePlaceholder);
+    }
+    
+    currentY += imageHeight + 15;
+    
+    // Title section
     const titleText = await this.createShape({
       shapeType: SHAPE_TYPES.TEXT,
-      x: x + 20,
-      y: y + 20,
+      x: adjustedX + cardPadding,
+      y: currentY,
       text: title,
-      fontSize: 18,
-      fill: '#1F2937'
+      fontSize: 20,
+      fill: '#1F2937',
+      skipCollisionCheck: true
     });
     cardElements.push(titleText);
-
-    // Content (if provided)
+    currentY += titleHeight;
+    
+    // Content/Description section
     if (content) {
       const contentText = await this.createShape({
         shapeType: SHAPE_TYPES.TEXT,
-        x: x + 20,
-        y: y + 60,
+        x: adjustedX + cardPadding,
+        y: currentY,
         text: content,
         fontSize: 14,
-        fill: '#6B7280'
+        fill: '#6B7280',
+        skipCollisionCheck: true
       });
       cardElements.push(contentText);
+    } else {
+      // Default description
+      const defaultContent = await this.createShape({
+        shapeType: SHAPE_TYPES.TEXT,
+        x: adjustedX + cardPadding,
+        y: currentY,
+        text: 'This is a sample card description that provides additional context and information about the content.',
+        fontSize: 14,
+        fill: '#6B7280',
+        skipCollisionCheck: true
+      });
+      cardElements.push(defaultContent);
     }
     
-    console.log('✅ Created card layout with title:', title);
-    return cardElements;
+    // Optional: Add action button
+    currentY = adjustedY + height - 50;
+    const actionButton = await this.createShape({
+      shapeType: SHAPE_TYPES.RECTANGLE,
+      x: adjustedX + cardPadding,
+      y: currentY,
+      width: width - (cardPadding * 2),
+      height: 35,
+      fill: '#3B82F6',
+      stroke: '#2563EB',
+      strokeWidth: 1,
+      skipCollisionCheck: true
+    });
+    cardElements.push(actionButton);
+    
+    const buttonText = await this.createShape({
+      shapeType: SHAPE_TYPES.TEXT,
+      x: adjustedX + width/2 - 25,
+      y: currentY + 10,
+      text: 'Learn More',
+      fontSize: 14,
+      fill: '#FFFFFF',
+      skipCollisionCheck: true
+    });
+    cardElements.push(buttonText);
+    
+    // Track all card elements for "these shapes" references
+    this._trackRecentlyCreated(cardElements);
+    
+    console.log('✅ Created enhanced card layout with title:', title);
+    return { components: cardElements };
   }
 
   /**

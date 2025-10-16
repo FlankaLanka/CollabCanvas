@@ -6,8 +6,9 @@ import ShapeTransformer from './ShapeTransformer';
 import CanvasControls from './CanvasControls';
 import CursorLayer from './CursorLayer';
 import PropertiesPanel from './PropertiesPanel';
-import InteractionGuide from './InteractionGuide';
+// InteractionGuide moved to Navbar
 import AIChat from '../AI/AIChat';
+import Grid from './Grid';
 import { usePresence } from '../../hooks/usePresence';
 import { 
   CANVAS_WIDTH, 
@@ -17,7 +18,7 @@ import {
   DEFAULT_ZOOM 
 } from '../../utils/constants';
 
-function Canvas() {
+function Canvas({ showGrid: propShowGrid, snapToGrid: propSnapToGrid }) {
   const {
     shapes,
     selectedId,
@@ -56,6 +57,10 @@ function Canvas() {
 
   const [containerSize, setContainerSize] = useState({ width: 800, height: 600 });
   const containerRef = useRef(null);
+  
+  // Use grid state from props (passed from App)
+  const showGrid = propShowGrid ?? true;
+  const snapToGrid = propSnapToGrid ?? false;
   
   // Middle mouse button panning state
   const [isMiddlePanning, setIsMiddlePanning] = useState(false);
@@ -374,9 +379,18 @@ function Canvas() {
         onMouseDown={handleMouseDown}
         onMouseUp={handleMouseUp}
       >
-        {/* Background Layer - Infinite canvas, no fixed background */}
+        {/* Background Layer - Coordinate Grid */}
         <Layer>          
-          {/* Optional: Grid lines could be added here for infinite canvas */}
+          {showGrid && (
+            <Grid 
+              key={`grid-${stageScale}-${stagePosition.x}-${stagePosition.y}`} // Force re-render
+              stageWidth={containerSize.width}
+              stageHeight={containerSize.height}
+              stageScale={stageScale}
+              stagePosition={stagePosition}
+              snapToGrid={snapToGrid}
+            />
+          )}
         </Layer>
 
          {/* Shapes Layer */}
@@ -389,6 +403,7 @@ function Canvas() {
                  shape={shape} 
                  isSelected={selectedIds.includes(shape.id)}
                  updateCursor={updateCursor}
+                 snapToGrid={snapToGrid}
                />
              ))}
            
@@ -416,15 +431,13 @@ function Canvas() {
       {/* Canvas Controls */}
       <CanvasControls />
 
-      {/* Interaction Guide */}
-      <InteractionGuide />
+      {/* Interaction Guide moved to Navbar */}
 
 
       {/* Properties Panel */}
       <PropertiesPanel />
 
-      {/* AI Chat Assistant */}
-      <AIChat />
+      {/* AI Chat moved to OnlineUsers component */}
 
       {/* Instructions */}
       {shapes.length === 0 && (

@@ -1,17 +1,19 @@
 /**
- * AI Canvas Agent - OpenAI Integration
+ * AI Canvas Agent - OpenAI Integration with LangChain ReAct Reasoning
  * 
  * A comprehensive AI agent that manipulates the collaborative canvas through natural language
- * using OpenAI's function calling capabilities.
+ * using both OpenAI's function calling capabilities and LangChain ReAct reasoning for complex tasks.
  * 
- * Requirements:
+ * Features:
+ * - Simple commands: Direct OpenAI function calling (fast execution)
+ * - Complex commands: LangChain ReAct reasoning (multi-step planning)
  * - 6+ distinct command categories (Creation, Manipulation, Layout, Complex)
- * - Response times under 2 seconds for simple commands
  * - Multi-user support without conflicts
  * - Real-time sync across all users
  */
 
 import { SHAPE_TYPES, DEFAULT_SHAPE_PROPS, COLOR_PALETTE } from '../utils/constants';
+import { CanvasReActAgent } from './ai/agent.js';
 
 // Environment detection
 const isDevelopment = import.meta.env.DEV;
@@ -173,10 +175,29 @@ const AI_FUNCTIONS = [
     }
   },
 
+  {
+    name: 'changeShapeText',
+    description: 'Change the text content of an existing text shape using natural language description',
+    parameters: {
+      type: 'object',
+      properties: {
+        shapeId: {
+          type: 'string',
+          description: 'Natural language description of the text shape (e.g., "text that says Hello", "username label", "title text")'
+        },
+        newText: {
+          type: 'string',
+          description: 'New text content to replace the existing text'
+        }
+      },
+      required: ['shapeId', 'newText']
+    }
+  },
+
   // LAYOUT COMMANDS
   {
     name: 'createMultipleShapes',
-    description: 'Create multiple shapes with automatic layout',
+    description: 'Create multiple shapes with automatic layout. Supports grid formats like "3x3" meaning 3 rows and 3 columns (9 total shapes).',
     parameters: {
       type: 'object',
       properties: {
@@ -187,31 +208,47 @@ const AI_FUNCTIONS = [
         },
         count: {
           type: 'number',
-          description: 'Number of shapes to create'
+          description: 'Number of shapes to create. For grids, this should be rows × columns (e.g., 3x3 = 9 shapes)'
         },
         arrangement: {
           type: 'string',
           enum: ['row', 'column', 'grid'],
           description: 'How to arrange the shapes'
         },
+        gridRows: {
+          type: 'number',
+          description: 'For grid arrangement: number of rows (e.g., for "3x3 grid" use 3)'
+        },
+        gridCols: {
+          type: 'number', 
+          description: 'For grid arrangement: number of columns (e.g., for "3x3 grid" use 3)'
+        },
         startX: {
           type: 'number',
-          description: 'Starting X position'
+          description: 'Starting X position (or use viewport center if not specified)'
         },
         startY: {
           type: 'number',
-          description: 'Starting Y position'
+          description: 'Starting Y position (or use viewport center if not specified)'
         },
         spacing: {
           type: 'number',
-          description: 'Space between shapes'
+          description: 'Space between shapes (will be calculated dynamically based on shape size if not specified)'
         },
         fill: {
           type: 'string',
           description: 'Color for all shapes'
+        },
+        width: {
+          type: 'number',
+          description: 'Width for each shape (for rectangles)'
+        },
+        height: {
+          type: 'number',
+          description: 'Height for each shape (for rectangles)'
         }
       },
-      required: ['shapeType', 'count', 'startX', 'startY']
+      required: ['shapeType', 'count']
     }
   },
 
@@ -395,6 +432,71 @@ export class AICanvasService {
     this.canvasAPI = canvasAPI;
     this.conversationHistory = [];
     this.isProcessing = false;
+    
+    // Initialize LangChain ReAct agent for complex reasoning
+    this.reactAgent = new CanvasReActAgent(canvasAPI);
+  }
+
+  /**
+   * Detect if a command requires complex multi-step reasoning
+   */
+  _isComplexCommand(userMessage) {
+    const complexPatterns = [
+      // Multi-step UI creation
+      /login\s+form/i,
+      /registration\s+form/i,
+      /signup\s+form/i,
+      /navigation\s+(bar|menu)/i,
+      /nav\s+(bar|menu)/i,
+      /card\s+layout/i,
+      
+      // Layout and organization requests
+      /arrange.*in.*grid/i,
+      /organize.*evenly/i,
+      /distribute.*evenly/i,
+      /align.*center/i,
+      /make.*same\s+size/i,
+      /resize.*all/i,
+      /create.*grid\s+of/i,
+      /\d+x\d+.*grid/i,
+      /center.*on.*canvas/i,
+      /center\s+it/i,
+      
+      // Styling modifiers with specific attributes
+      /with.*red.*text/i,
+      /with.*blue.*button/i,
+      /with.*\w+.*text/i, // "with [color] text"
+      /with.*color/i,
+      /make.*text.*red/i,
+      /change.*text.*color/i,
+      /red.*text/i,
+      
+      // Multi-object operations
+      /create.*and.*arrange/i,
+      /make.*then.*move/i,
+      /several.*shapes/i,
+      /multiple.*elements/i,
+      /create.*\d+.*shapes/i, // "create 5 shapes"
+      
+      // Complex requests with "and"
+      /create.*and.*make/i,
+      /add.*and.*position/i,
+      /build.*with.*styling/i,
+      /create.*and.*center/i,
+      
+      // Sequential actions indicated by words
+      /first.*then/i,
+      /after.*do/i,
+      /once.*complete/i,
+      /then.*make/i,
+      /then.*change/i,
+      
+      // Requests with multiple requirements
+      /\w+.*and.*\w+.*and/i, // multiple "and" clauses
+      /.*(create|make|add).*and.*(move|position|center|color|style)/i,
+    ];
+    
+    return complexPatterns.some(pattern => pattern.test(userMessage));
   }
 
   /**
@@ -411,6 +513,55 @@ export class AICanvasService {
     try {
       console.log('🤖 Processing AI command:', userMessage);
 
+      // Check if this is a complex command that requires ReAct reasoning
+      if (this._isComplexCommand(userMessage)) {
+        console.log('🧠 Using ReAct agent for complex command');
+        
+        try {
+          const result = await this.reactAgent.processCommand(userMessage);
+          const processingTime = Date.now() - startTime;
+          
+          return {
+            response: result.response,
+            functionCalls: [], // ReAct agent handles this internally
+            results: [],
+            processingTime,
+            reasoning: result.reasoning,
+            agentUsed: 'react'
+          };
+        } catch (error) {
+          console.warn('⚠️ ReAct agent failed, falling back to standard processing:', error.message);
+          // Fall through to standard processing
+        }
+      }
+      
+      console.log('🔧 Using standard OpenAI function calling');
+      return await this._processWithFunctionCalling(userMessage, startTime);
+      
+    } catch (error) {
+      console.error('❌ AI processing error:', error);
+      throw new Error(`AI processing failed: ${error.message}`);
+    } finally {
+      this.isProcessing = false;
+    }
+  }
+
+  /**
+   * Process command using the original OpenAI function calling approach
+   */
+  async _processWithFunctionCalling(userMessage, startTime) {
+      // Refresh canvas context to ensure we have the latest data
+      if (this.canvasAPI.refreshContext) {
+        this.canvasAPI.refreshContext();
+      }
+
+      // Get the most current canvas state
+      const currentCanvasState = this.canvasAPI.getCanvasState();
+      console.log('🎯 Current canvas state for AI:', {
+        shapesCount: currentCanvasState.totalShapes,
+        shapes: currentCanvasState.shapes.slice(0, 3).map(s => `${s.type} at (${s.x}, ${s.y})`)
+      });
+
       // Prepare conversation with system context
       const messages = [
         {
@@ -418,7 +569,7 @@ export class AICanvasService {
           content: `You are an AI assistant that manipulates a collaborative canvas through function calls. 
 
 CURRENT CANVAS STATE:
-${JSON.stringify(this.canvasAPI.getCanvasState(), null, 2)}
+${JSON.stringify(currentCanvasState, null, 2)}
 
 SHAPE IDENTIFICATION SYSTEM:
 - Identify shapes by natural language descriptions like "blue rectangle", "red circle", "large triangle"
@@ -427,6 +578,13 @@ SHAPE IDENTIFICATION SYSTEM:
 - Supported types: rectangle, circle, triangle, text, input field, line, bezier curve
 - Size descriptors: large/big, small/tiny
 - Examples: "delete the blue rectangle", "move the red circle to 200, 300", "resize the large triangle"
+
+ENHANCED COMMAND PARSING:
+- Coordinates: "at position 100, 200" or "at coordinates (100, 200)" → x: 100, y: 200
+- Dimensions: "200x300" or "200 by 300" → width: 200, height: 300  
+- Scale factors: "twice as big" → scale: 2.0, "half the size" → scale: 0.5, "three times bigger" → scale: 3.0
+- Grid formats: "3x3 grid" → 3 rows, 3 columns = 9 shapes total
+- Shape selection: "these shapes" refers to recently created or currently selected shapes
 
 GUIDELINES:
 - ALWAYS use listShapes() first if user asks about existing shapes
@@ -450,9 +608,10 @@ RESPONSE REQUIREMENTS:
 
 COMMAND CATEGORIES YOU SUPPORT:
 1. Creation: Create shapes, text, and elements
-2. Manipulation: Move, resize, rotate, recolor existing shapes  
+2. Manipulation: Move, resize, rotate, recolor, and modify text content of existing shapes  
 3. Layout: Arrange multiple shapes in patterns, create grids
 4. Complex: Build complete UI components (forms, navigation, cards)
+5. Text Editing: Change text content of existing text shapes and labels
 
 Be helpful and creative while following the user's intent precisely. Always respond conversationally to engage with the user.`
         },
@@ -598,6 +757,14 @@ Alternative: Deploy to Vercel/Netlify to test AI features in production.`;
                   aiResponse = `✅ Done! I've changed the shape's color.`;
                 }
                 break;
+
+              case 'changeShapeText':
+                if (result && result.description && result.text) {
+                  aiResponse = `✅ Perfect! I've updated the text to "${result.text}".`;
+                } else {
+                  aiResponse = `✅ Done! I've updated the text content.`;
+                }
+                break;
                 
               case 'createShape':
                 if (result && result.type) {
@@ -681,15 +848,9 @@ Alternative: Deploy to Vercel/Netlify to test AI features in production.`;
         response: aiResponse,
         functionCalls,
         results,
-        processingTime
+        processingTime,
+        agentUsed: 'function-calling'
       };
-
-    } catch (error) {
-      console.error('❌ AI processing error:', error);
-      throw new Error(`AI processing failed: ${error.message}`);
-    } finally {
-      this.isProcessing = false;
-    }
   }
 
   /**
@@ -717,10 +878,19 @@ Alternative: Deploy to Vercel/Netlify to test AI features in production.`;
       case 'changeShapeColor':
         return await this.canvasAPI.changeShapeColor(parsedArgs.shapeId, parsedArgs.color);
       
+      case 'changeShapeText':
+        return await this.canvasAPI.changeShapeText(parsedArgs.shapeId, parsedArgs.newText);
+      
       case 'createMultipleShapes':
         return await this.canvasAPI.createMultipleShapes(parsedArgs);
       
       case 'arrangeShapes':
+        // Handle "these shapes" reference
+        if (parsedArgs.shapeIds && (parsedArgs.shapeIds.includes('these') || parsedArgs.shapeIds.includes('recent'))) {
+          const recentShapes = this.canvasAPI.resolveTheseShapes();
+          parsedArgs.shapeIds = recentShapes.map(shape => shape.id);
+          console.log('🔗 Resolved "these shapes" to:', parsedArgs.shapeIds.length, 'shapes');
+        }
         return await this.canvasAPI.arrangeShapes(parsedArgs);
         
       case 'createLoginForm':
