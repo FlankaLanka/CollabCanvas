@@ -391,7 +391,8 @@ function PropertiesPanel() {
     updateShape, 
     selectedId, 
     selectedIds,
-    setShapeZIndex
+    setShapeZIndex,
+    addBezierPoint
   } = useCanvas();
   
   const selectedShape = getSelectedShape(); // Primary selected shape
@@ -879,6 +880,73 @@ function PropertiesPanel() {
                 </button>
               ))}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bezier Curve Properties */}
+      {selectedShape?.type === SHAPE_TYPES.BEZIER_CURVE && (
+        <div className="mb-5">
+          <div className="flex items-center mb-3">
+            <svg className="w-4 h-4 mr-2 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12C3 12 6 2 12 12C18 22 21 12 21 12" />
+            </svg>
+            <h4 className="text-sm font-medium text-gray-200">Bezier Curve</h4>
+          </div>
+
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-gray-400">
+                Anchor Points: {selectedShape?.anchorPoints?.length || 3}
+              </span>
+              <button
+                onClick={() => {
+                  console.log('🔵 Add Point button clicked for shape:', selectedShape?.id, 'type:', selectedShape?.type);
+                  addBezierPoint(selectedShape.id);
+                }}
+                className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                title="Add anchor point to curve"
+              >
+                + Add Point
+              </button>
+            </div>
+
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-gray-400">Edit Points</span>
+              <button
+                onClick={() => updateShapeProperty('showAnchorPoints', !selectedShape?.showAnchorPoints)}
+                className={`px-3 py-1 text-xs rounded transition-colors ${
+                  selectedShape?.showAnchorPoints 
+                    ? 'bg-green-600 text-white hover:bg-green-700' 
+                    : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                }`}
+                title="Toggle anchor point visibility"
+              >
+                {selectedShape?.showAnchorPoints ? 'Hide Points' : 'Show Points'}
+              </button>
+            </div>
+
+            <ScalarInput
+              label="Smoothing"
+              value={(selectedShape?.smoothing ?? 0.3) * 100}
+              onChange={(value) => updateShapeProperty('smoothing', value / 100)}
+              unit="%"
+              min={0}
+              max={100}
+              step={5}
+              precision={0}
+            />
+
+            <ScalarInput
+              label="Stroke Width"
+              value={selectedShape?.strokeWidth || 3}
+              onChange={(value) => updateShapeProperty('strokeWidth', value)}
+              unit="px"
+              min={1}
+              max={20}
+              step={1}
+              precision={0}
+            />
           </div>
         </div>
       )}

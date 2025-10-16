@@ -92,7 +92,7 @@ const AI_FUNCTIONS = [
           description: 'New X position'
         },
         y: {
-          type: 'number',
+          type: 'number', 
           description: 'New Y position'
         }
       },
@@ -757,7 +757,7 @@ Alternative: Deploy to Vercel/Netlify to test AI features in production.`;
       
       case 'deleteShape':
         return await this.canvasAPI.deleteShape(parsedArgs.shapeId);
-      
+        
       default:
         throw new Error(`Unknown function: ${name}`);
     }

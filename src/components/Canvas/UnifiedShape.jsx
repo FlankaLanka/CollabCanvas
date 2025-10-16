@@ -4,35 +4,121 @@ import { useCanvas } from '../../contexts/ModernCanvasContext';
 import { SHAPE_TYPES } from '../../utils/constants';
 
 /**
- * Generate points for a cubic bezier curve
- * @param {Array} controlPoints - Array of 4 control points [{x, y}, {x, y}, {x, y}, {x, y}]
- * @param {number} segments - Number of segments to divide the curve into
+ * Generate control handles for smooth curve between anchor points
+ * @param {Array} anchorPoints - Array of anchor points [{x, y}, ...]
+ * @param {number} smoothing - Smoothing factor (0 = sharp, 1 = very smooth)
+ * @returns {Array} Array of control point pairs for each segment
+ */
+function generateControlHandles(anchorPoints, smoothing = 0.3) {
+  if (!anchorPoints || anchorPoints.length < 2) {
+    return [];
+  }
+
+  const controlHandles = [];
+  
+  for (let i = 0; i < anchorPoints.length - 1; i++) {
+    const current = anchorPoints[i];
+    const next = anchorPoints[i + 1];
+    
+    // Get surrounding points for tangent calculation
+    const prev = i > 0 ? anchorPoints[i - 1] : null;
+    const afterNext = i < anchorPoints.length - 2 ? anchorPoints[i + 2] : null;
+    
+    // Calculate tangent vectors
+    let tangent1, tangent2;
+    
+    if (prev) {
+      // Use the vector from previous to next point
+      tangent1 = {
+        x: (next.x - prev.x) * smoothing,
+        y: (next.y - prev.y) * smoothing
+      };
+    } else {
+      // First point: use vector to next point
+      tangent1 = {
+        x: (next.x - current.x) * smoothing,
+        y: (next.y - current.y) * smoothing
+      };
+    }
+    
+    if (afterNext) {
+      // Use the vector from current to after next point
+      tangent2 = {
+        x: (afterNext.x - current.x) * smoothing,
+        y: (afterNext.y - current.y) * smoothing
+      };
+    } else {
+      // Last point: use vector from current point
+      tangent2 = {
+        x: (next.x - current.x) * smoothing,
+        y: (next.y - current.y) * smoothing
+      };
+    }
+    
+    // Generate control points for this segment
+    const control1 = {
+      x: current.x + tangent1.x,
+      y: current.y + tangent1.y
+    };
+    
+    const control2 = {
+      x: next.x - tangent2.x,
+      y: next.y - tangent2.y
+    };
+    
+    controlHandles.push([control1, control2]);
+  }
+  
+  return controlHandles;
+}
+
+/**
+ * Generate points for multi-segment bezier curve
+ * @param {Array} anchorPoints - Array of anchor points [{x, y}, ...]
+ * @param {number} smoothing - Smoothing factor for auto-generated control handles
+ * @param {number} segments - Number of segments per curve section
  * @returns {Array} Array of points [x1, y1, x2, y2, ...]
  */
-function generateBezierPoints(controlPoints, segments = 50) {
-  if (!controlPoints || controlPoints.length !== 4) {
+function generateMultiBezierPoints(anchorPoints, smoothing = 0.3, segments = 25) {
+  if (!anchorPoints || anchorPoints.length < 2) {
     return [0, 0, 100, 0]; // Fallback to simple line
   }
 
-  const [p0, p1, p2, p3] = controlPoints;
-  const points = [];
-
-  for (let i = 0; i <= segments; i++) {
-    const t = i / segments;
-    const mt = 1 - t;
-    const mt2 = mt * mt;
-    const mt3 = mt2 * mt;
-    const t2 = t * t;
-    const t3 = t2 * t;
-
-    // Cubic bezier formula: P(t) = (1-t)³P₀ + 3(1-t)²tP₁ + 3(1-t)t²P₂ + t³P₃
-    const x = mt3 * p0.x + 3 * mt2 * t * p1.x + 3 * mt * t2 * p2.x + t3 * p3.x;
-    const y = mt3 * p0.y + 3 * mt2 * t * p1.y + 3 * mt * t2 * p2.y + t3 * p3.y;
-
-    points.push(x, y);
+  if (anchorPoints.length === 2) {
+    // Simple line for 2 points
+    return [anchorPoints[0].x, anchorPoints[0].y, anchorPoints[1].x, anchorPoints[1].y];
   }
 
-  return points;
+  const controlHandles = generateControlHandles(anchorPoints, smoothing);
+  const allPoints = [];
+
+  // Generate bezier curve for each segment
+  for (let i = 0; i < anchorPoints.length - 1; i++) {
+    const p0 = anchorPoints[i];
+    const p3 = anchorPoints[i + 1];
+    const [p1, p2] = controlHandles[i];
+
+    // Generate curve points for this segment
+    for (let j = 0; j <= segments; j++) {
+      const t = j / segments;
+      const mt = 1 - t;
+      const mt2 = mt * mt;
+      const mt3 = mt2 * mt;
+      const t2 = t * t;
+      const t3 = t2 * t;
+
+      // Cubic bezier formula: P(t) = (1-t)³P₀ + 3(1-t)²tP₁ + 3(1-t)t²P₂ + t³P₃
+      const x = mt3 * p0.x + 3 * mt2 * t * p1.x + 3 * mt * t2 * p2.x + t3 * p3.x;
+      const y = mt3 * p0.y + 3 * mt2 * t * p1.y + 3 * mt * t2 * p2.y + t3 * p3.y;
+
+      // Skip duplicate points at segment connections (except for first segment)
+      if (i === 0 || j > 0) {
+        allPoints.push(x, y);
+      }
+    }
+  }
+
+  return allPoints;
 }
 
 /**
@@ -59,6 +145,9 @@ function UnifiedShape({ shape, isSelected, updateCursor }) {
     isDragging,
     isTransforming,
     setTransformMode,
+    updateBezierPoint,
+    syncBezierPoints,
+    removeBezierPoint,
     stageRef
   } = useCanvas();
 
@@ -69,6 +158,30 @@ function UnifiedShape({ shape, isSelected, updateCursor }) {
   const hasMoved = useRef(false);
   
   const MOVE_THRESHOLD = 3; // 3px movement to start drag
+
+  // Helper function to update cursor from drag events with correct coordinates
+  const updateCursorFromDragEvent = useCallback((event, stage) => {
+    if (!updateCursor || !stage) return;
+    
+    // Get screen coordinates from the actual mouse event
+    const rect = stage.container().getBoundingClientRect();
+    const screenX = event.clientX - rect.left;
+    const screenY = event.clientY - rect.top;
+    
+    // Convert to canvas coordinates
+    const stagePos = stage.position();
+    const stageScale = stage.scaleX();
+    const canvasX = (screenX - stagePos.x) / stageScale;
+    const canvasY = (screenY - stagePos.y) / stageScale;
+    
+    // Update cursor with both screen and canvas coordinates
+    updateCursor(screenX, screenY, canvasX, canvasY);
+    
+    console.log('🎯 Updated cursor during drag:', {
+      screen: { x: screenX, y: screenY },
+      canvas: { x: canvasX, y: canvasY }
+    });
+  }, [updateCursor]);
 
   // Handle mouse down (select and prepare for drag)
   const handleMouseDown = useCallback((e) => {
@@ -324,19 +437,13 @@ function UnifiedShape({ shape, isSelected, updateCursor }) {
     // Konva drag events with cursor sync
     onDragStart: (e) => {
       console.log('🚀 Konva drag start for shape:', shape.id);
-      const pos = e.target.position();
       
       // Start drag tracking
       startDrag(shape.id);
       
-      // Update user cursor to show at drag position
-      if (updateCursor && stageRef.current) {
-        const stage = stageRef.current;
-        const stagePos = stage.position();
-        const stageScale = stage.scaleX();
-        const screenX = pos.x * stageScale + stagePos.x;
-        const screenY = pos.y * stageScale + stagePos.y;
-        updateCursor(screenX, screenY, pos.x, pos.y);
+      // Update user cursor using the actual mouse event for accurate coordinates
+      if (updateCursor && stageRef.current && e.evt) {
+        updateCursorFromDragEvent(e.evt, stageRef.current);
       }
     },
     onDragMove: (e) => {
@@ -346,14 +453,9 @@ function UnifiedShape({ shape, isSelected, updateCursor }) {
       // Update positions
       updateDragPositions(shape.id, pos);
       
-      // Update user cursor to follow drag position
-      if (updateCursor && stageRef.current) {
-        const stage = stageRef.current;
-        const stagePos = stage.position();
-        const stageScale = stage.scaleX();
-        const screenX = pos.x * stageScale + stagePos.x;
-        const screenY = pos.y * stageScale + stagePos.y;
-        updateCursor(screenX, screenY, pos.x, pos.y);
+      // Update user cursor using the actual mouse event for accurate coordinates
+      if (updateCursor && stageRef.current && e.evt) {
+        updateCursorFromDragEvent(e.evt, stageRef.current);
       }
     },
     onDragEnd: (e) => {
@@ -362,15 +464,9 @@ function UnifiedShape({ shape, isSelected, updateCursor }) {
       // End drag tracking
       endDrag();
       
-      // Final cursor position update
-      const pos = e.target.position();
-      if (updateCursor && stageRef.current) {
-        const stage = stageRef.current;
-        const stagePos = stage.position();
-        const stageScale = stage.scaleX();
-        const screenX = pos.x * stageScale + stagePos.x;
-        const screenY = pos.y * stageScale + stagePos.y;
-        updateCursor(screenX, screenY, pos.x, pos.y);
+      // Final cursor position update using actual mouse event
+      if (updateCursor && stageRef.current && e.evt) {
+        updateCursorFromDragEvent(e.evt, stageRef.current);
       }
     },
     
@@ -472,13 +568,13 @@ function UnifiedShape({ shape, isSelected, updateCursor }) {
       );
     
     case SHAPE_TYPES.BEZIER_CURVE:
-      const bezierPoints = generateBezierPoints(shape.controlPoints);
-      const controlPoints = shape.controlPoints || [
+      const anchorPoints = shape.anchorPoints || [
         { x: 0, y: 0 },
-        { x: 50, y: -50 },
-        { x: 100, y: 50 },
+        { x: 75, y: -50 },
         { x: 150, y: 0 }
       ];
+      
+      const bezierPoints = generateMultiBezierPoints(anchorPoints, shape.smoothing || 0.3);
       
       return (
         <Group {...commonProps}>
@@ -494,67 +590,77 @@ function UnifiedShape({ shape, isSelected, updateCursor }) {
             tension={0} // We handle our own curve generation
             onDblClick={(e) => {
               e.cancelBubble = true;
-              // Toggle control point visibility on double-click
+              // Toggle anchor point visibility on double-click
               updateShape(shape.id, { 
-                showControlPoints: !shape.showControlPoints 
+                showAnchorPoints: !shape.showAnchorPoints 
               });
             }}
           />
           
-          {/* Control points (visible when selected and editing) */}
-          {isSelected && shape.showControlPoints && controlPoints.map((point, index) => (
-            <Group key={`control-${index}`}>
-              {/* Control lines (showing curve structure) */}
-              {index === 1 && (
-                <Line
-                  points={[controlPoints[0].x, controlPoints[0].y, point.x, point.y]}
-                  stroke="#94A3B8"
-                  strokeWidth={1}
-                  dash={[5, 5]}
-                />
-              )}
-              {index === 2 && (
-                <Line
-                  points={[controlPoints[3].x, controlPoints[3].y, point.x, point.y]}
-                  stroke="#94A3B8"
-                  strokeWidth={1}
-                  dash={[5, 5]}
-                />
-              )}
-              
-              {/* Control point handle */}
-              <Circle
-                x={point.x}
-                y={point.y}
-                radius={6}
-                fill={index === 0 || index === 3 ? '#3B82F6' : '#EF4444'}
-                stroke="#FFFFFF"
-                strokeWidth={2}
-                draggable={true}
-                onDragStart={() => {
-                  // Prevent shape dragging when dragging control points
-                  setTransformMode(true);
-                }}
-                onDragMove={(e) => {
-                  // Update control point position in real-time
-                  const newControlPoints = [...controlPoints];
-                  newControlPoints[index] = { x: e.target.x(), y: e.target.y() };
-                  
-                  // Update the shape with new control points
-                  updateShape(shape.id, { controlPoints: newControlPoints });
-                }}
-                onDragEnd={() => {
-                  // Re-enable shape dragging
-                  setTransformMode(false);
-                }}
-                onMouseEnter={(e) => {
-                  e.target.getStage().container().style.cursor = 'pointer';
-                }}
-                onMouseLeave={(e) => {
-                  e.target.getStage().container().style.cursor = 'default';
-                }}
-              />
-            </Group>
+          {/* Anchor points (visible when selected and editing) */}
+          {isSelected && shape.showAnchorPoints && anchorPoints.map((point, index) => (
+            <Circle
+              key={`anchor-${index}`}
+              x={point.x}
+              y={point.y}
+              radius={8}
+              fill="#3B82F6"
+              stroke="#FFFFFF"
+              strokeWidth={3}
+              draggable={true}
+              onDragStart={(e) => {
+                e.cancelBubble = true;
+                // Prevent shape dragging when dragging anchor points
+                setTransformMode(true);
+                
+                // Update cursor position during anchor point drag
+                if (updateCursor && stageRef.current && e.evt) {
+                  updateCursorFromDragEvent(e.evt, stageRef.current);
+                }
+              }}
+              onDragMove={(e) => {
+                e.cancelBubble = true;
+                // Update anchor point position in real-time
+                const newPosition = { x: e.target.x(), y: e.target.y() };
+                updateBezierPoint(shape.id, index, newPosition);
+                
+                // Update cursor position during anchor point drag
+                if (updateCursor && stageRef.current && e.evt) {
+                  updateCursorFromDragEvent(e.evt, stageRef.current);
+                }
+              }}
+              onDragEnd={(e) => {
+                e.cancelBubble = true;
+                // Sync final anchor point positions to database
+                syncBezierPoints(shape.id);
+                // Re-enable shape dragging
+                setTransformMode(false);
+                
+                // Final cursor position update
+                if (updateCursor && stageRef.current && e.evt) {
+                  updateCursorFromDragEvent(e.evt, stageRef.current);
+                }
+              }}
+              onMouseEnter={(e) => {
+                e.target.getStage().container().style.cursor = 'pointer';
+              }}
+              onMouseLeave={(e) => {
+                e.target.getStage().container().style.cursor = 'default';
+              }}
+              onClick={(e) => {
+                e.cancelBubble = true;
+                // Prevent selecting the main shape when clicking anchor points
+              }}
+              onContextMenu={(e) => {
+                e.evt.preventDefault();
+                e.cancelBubble = true;
+                
+                // Right-click to delete anchor point (minimum 2 points)
+                if (anchorPoints.length > 2) {
+                  removeBezierPoint(shape.id, index);
+                }
+              }}
+            />
           ))}
         </Group>
       );

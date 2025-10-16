@@ -559,6 +559,122 @@ export function CanvasProvider({ children }) {
   }, [updateShape]);
 
   /**
+   * Add anchor point to bezier curve
+   */
+  const addBezierPoint = useCallback(async (shapeId) => {
+    console.log('🔍 Adding bezier point to shape:', shapeId);
+    const shape = store.shapes.get(shapeId);
+    console.log('🔍 Shape found:', shape?.id, 'type:', shape?.type);
+    
+    if (!shape || shape.type !== 'bezier_curve') {
+      console.warn('❌ Cannot add point: shape not found or not a bezier curve', {
+        shapeExists: !!shape,
+        shapeType: shape?.type,
+        expectedType: 'bezier_curve'
+      });
+      return;
+    }
+
+    const currentPoints = shape.anchorPoints || [];
+    if (currentPoints.length < 2) {
+      console.warn('❌ Cannot add point: curve needs at least 2 anchor points');
+      return;
+    }
+
+    // Add new point at the end, extending the curve naturally
+    const lastPoint = currentPoints[currentPoints.length - 1];
+    const secondLastPoint = currentPoints[currentPoints.length - 2];
+    
+    // Calculate direction vector and extend the curve
+    const direction = {
+      x: lastPoint.x - secondLastPoint.x,
+      y: lastPoint.y - secondLastPoint.y
+    };
+    
+    const newPoint = {
+      x: lastPoint.x + direction.x * 0.8,
+      y: lastPoint.y + direction.y * 0.8
+    };
+
+    const newAnchorPoints = [...currentPoints, newPoint];
+    
+    await updateShape(shapeId, { anchorPoints: newAnchorPoints });
+    console.log('➕ Added bezier point to curve:', shapeId, newPoint);
+  }, [store, updateShape]);
+
+  /**
+   * Remove anchor point from bezier curve
+   */
+  const removeBezierPoint = useCallback(async (shapeId, pointIndex) => {
+    const shape = store.shapes.get(shapeId);
+    if (!shape || shape.type !== 'bezier_curve') {
+      console.warn('❌ Cannot remove point: shape not found or not a bezier curve');
+      return;
+    }
+
+    const currentPoints = shape.anchorPoints || [];
+    if (currentPoints.length <= 2) {
+      console.warn('❌ Cannot remove point: curve needs at least 2 anchor points');
+      return;
+    }
+
+    if (pointIndex < 0 || pointIndex >= currentPoints.length) {
+      console.warn('❌ Cannot remove point: invalid index');
+      return;
+    }
+
+    const newAnchorPoints = currentPoints.filter((_, index) => index !== pointIndex);
+    
+    await updateShape(shapeId, { anchorPoints: newAnchorPoints });
+    console.log('➖ Removed bezier point from curve:', shapeId, pointIndex);
+  }, [store, updateShape]);
+
+  /**
+   * Update anchor point position in bezier curve (immediate for smooth dragging)
+   */
+  const updateBezierPoint = useCallback((shapeId, pointIndex, newPosition) => {
+    const shape = store.shapes.get(shapeId);
+    if (!shape || shape.type !== 'bezier_curve') {
+      return;
+    }
+
+    const currentPoints = shape.anchorPoints || [];
+    if (pointIndex < 0 || pointIndex >= currentPoints.length) {
+      return;
+    }
+
+    const newAnchorPoints = [...currentPoints];
+    newAnchorPoints[pointIndex] = { ...newPosition };
+    
+    // Update local shape immediately for smooth visual feedback
+    shape.anchorPoints = newAnchorPoints;
+    triggerUpdate(); // Force React re-render
+    
+    console.log('📍 Updated bezier anchor point:', pointIndex, 'to:', newPosition);
+  }, [store, triggerUpdate]);
+
+  /**
+   * Sync bezier point changes to database (called on drag end)
+   */
+  const syncBezierPoints = useCallback(async (shapeId) => {
+    const shape = store.shapes.get(shapeId);
+    if (!shape || shape.type !== 'bezier_curve') {
+      return;
+    }
+
+    try {
+      await updateShape(shapeId, { 
+        anchorPoints: shape.anchorPoints,
+        lastModified: Date.now(),
+        lastModifiedBy: getCurrentUser()?.uid || 'anonymous'
+      });
+      console.log('✅ Synced bezier points to database:', shapeId);
+    } catch (error) {
+      console.error('❌ Error syncing bezier points:', error);
+    }
+  }, [store, updateShape]);
+
+  /**
    * Delete shape with database sync
    */
   const deleteShape = useCallback(async (id) => {
@@ -839,6 +955,12 @@ export function CanvasProvider({ children }) {
     moveForward,
     moveBackward,
     setShapeZIndex,
+    
+    // Bezier curve functions
+    addBezierPoint,
+    removeBezierPoint,
+    updateBezierPoint,
+    syncBezierPoints,
     
     // Legacy compatibility
     localDragStates: store.locallyDraggedShapes || new Set(),

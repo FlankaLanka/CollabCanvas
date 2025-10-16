@@ -96,8 +96,8 @@ function Toolbar() {
     const center = getViewportCenter();
     const defaults = DEFAULT_SHAPE_PROPS[SHAPE_TYPES.BEZIER_CURVE];
     
-    // Position the control points relative to the center
-    const controlPoints = defaults.controlPoints.map(point => ({
+    // Position the anchor points relative to the center
+    const anchorPoints = defaults.anchorPoints.map(point => ({
       x: center.x + point.x - 75, // Offset to center the curve
       y: center.y + point.y
     }));
@@ -106,15 +106,15 @@ function Toolbar() {
       type: SHAPE_TYPES.BEZIER_CURVE,
       x: center.x - 75, // Position for curve center
       y: center.y,
-      controlPoints: controlPoints,
+      anchorPoints: anchorPoints,
       stroke: defaults.stroke,
       strokeWidth: defaults.strokeWidth,
       fill: defaults.fill,
       lineCap: defaults.lineCap,
       lineJoin: defaults.lineJoin,
-      tension: defaults.tension,
+      smoothing: defaults.smoothing,
       editable: defaults.editable,
-      showControlPoints: false // Start with control points hidden
+      showAnchorPoints: false // Start with anchor points hidden
     });
   }, [addShape, getViewportCenter]);
 

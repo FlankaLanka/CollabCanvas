@@ -459,15 +459,15 @@ export class CanvasAPI {
 
       // Add type-specific properties
       switch (shapeType) {
-        case SHAPE_TYPES.RECTANGLE:
+      case SHAPE_TYPES.RECTANGLE:
         newShape.width = width || defaults.width;
         newShape.height = height || defaults.height;
-          break;
-        
-        case SHAPE_TYPES.CIRCLE:
+        break;
+      
+      case SHAPE_TYPES.CIRCLE:
         newShape.radiusX = radiusX || defaults.radiusX;
         newShape.radiusY = radiusY || defaults.radiusY;
-          break;
+        break;
       
       case SHAPE_TYPES.TEXT:
       case SHAPE_TYPES.TEXT_INPUT:
@@ -483,7 +483,7 @@ export class CanvasAPI {
         } else if (fill && this.isDarkColor(fill)) {
           newShape.fill = '#FFFFFF'; // White text on dark backgrounds
         }
-          break;
+        break;
       
       case SHAPE_TYPES.TRIANGLE:
         // Triangles use points array, not width/height
@@ -503,6 +503,19 @@ export class CanvasAPI {
           }
         }
         break;
+      
+      case SHAPE_TYPES.BEZIER_CURVE:
+        // Position anchor points relative to the shape position
+        newShape.anchorPoints = defaults.anchorPoints.map(point => ({
+          x: point.x + (x || 0),
+          y: point.y + (y || 0)
+        }));
+        newShape.stroke = this.parseColor(fill) || defaults.stroke;
+        newShape.strokeWidth = defaults.strokeWidth;
+        newShape.smoothing = defaults.smoothing;
+        newShape.showAnchorPoints = defaults.showAnchorPoints;
+        delete newShape.fill; // Bezier curves don't have fill
+        break;
     }
 
     // Add to canvas using context method
@@ -521,15 +534,15 @@ export class CanvasAPI {
     if (!shape) {
       shape = this.findShape(shapeIdInput);
     }
-    
+
     if (!shape) {
       throw new Error(`Shape not found: "${shapeIdInput}". Try describing it by color and type (e.g., "blue rectangle").`);
     }
-
+    
     await this.canvas.updateShape(shape.id, { x, y });
     const description = this.getShapeDescription(shape);
     console.log('✅ Moved shape:', description, 'to', `(${x}, ${y})`);
-    return { 
+    return {
       shapeId: shape.id, 
       description: description,
       x, 
@@ -588,7 +601,7 @@ export class CanvasAPI {
     await this.canvas.updateShape(shape.id, updates);
     const description = this.getShapeDescription(shape);
     console.log('✅ Resized shape:', description, updates);
-    return { 
+    return {
       shapeId: shape.id, 
       description: description, 
       ...updates 
@@ -637,7 +650,7 @@ export class CanvasAPI {
     await this.canvas.updateShape(shape.id, { fill: parsedColor });
     const description = this.getShapeDescription(shape);
     console.log('✅ Changed shape color:', description, 'to', parsedColor);
-    return { 
+    return {
       shapeId: shape.id, 
       description: description, 
       fill: parsedColor 
@@ -884,7 +897,7 @@ export class CanvasAPI {
       fill: '#FFFFFF'
     });
     cardElements.push(cardBg);
-    
+
     // Card border
     const cardBorder = await this.createShape({
       shapeType: SHAPE_TYPES.RECTANGLE,
@@ -941,7 +954,7 @@ export class CanvasAPI {
     const description = this.getShapeDescription(shape);
     await this.canvas.deleteShape(shape.id);
     console.log('✅ Deleted shape:', description);
-    return { 
+    return {
       shapeId: shape.id, 
       description: description, 
       deleted: true 
