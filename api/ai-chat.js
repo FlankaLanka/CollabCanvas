@@ -5,7 +5,79 @@
  * It handles function calling for canvas manipulation and provides error handling.
  */
 
-import { AI_FUNCTIONS } from './ai-functions.js';
+// Import AI_FUNCTIONS from the shared file
+// import { AI_FUNCTIONS } from './ai-functions.js';
+
+// For now, let's define the functions inline to avoid import issues
+const AI_FUNCTIONS = [
+  {
+    name: 'createShape',
+    description: 'Create a SINGLE shape on the canvas. Use this ONLY for creating one shape at a time.',
+    parameters: {
+      type: 'object',
+      properties: {
+        shapeType: {
+          type: 'string',
+          enum: ['rectangle', 'circle', 'triangle', 'line', 'text', 'text_input', 'bezier_curve'],
+          description: 'Type of shape to create'
+        },
+        x: {
+          type: 'number',
+          description: 'X position on canvas'
+        },
+        y: {
+          type: 'number', 
+          description: 'Y position on canvas'
+        },
+        width: {
+          type: 'number',
+          description: 'Width of the shape (for rectangles)'
+        },
+        height: {
+          type: 'number',
+          description: 'Height of the shape (for rectangles)'
+        },
+        fill: {
+          type: 'string',
+          description: 'Color of the shape (hex code or color name)'
+        },
+        text: {
+          type: 'string',
+          description: 'Text content (for text shapes)'
+        }
+      },
+      required: ['shapeType', 'x', 'y']
+    }
+  },
+  {
+    name: 'createMultipleShapes',
+    description: 'Create multiple shapes with automatic layout. Use this for ANY command involving quantities (5 circles, 3x3 grid, etc.).',
+    parameters: {
+      type: 'object',
+      properties: {
+        shapeType: {
+          type: 'string',
+          enum: ['rectangle', 'circle', 'triangle', 'bezier_curve'],
+          description: 'Type of shapes to create'
+        },
+        count: {
+          type: 'number',
+          description: 'Number of shapes to create'
+        },
+        arrangement: {
+          type: 'string',
+          enum: ['row', 'column', 'grid'],
+          description: 'How to arrange the shapes'
+        },
+        fill: {
+          type: 'string',
+          description: 'Color for all shapes (hex code or color name)'
+        }
+      },
+      required: ['shapeType', 'count']
+    }
+  }
+];
 
 export default async function handler(req, res) {
   // Only allow POST requests
