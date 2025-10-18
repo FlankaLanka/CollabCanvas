@@ -4,7 +4,8 @@ import Login from './components/Auth/Login';
 import Signup from './components/Auth/Signup';
 import Navbar from './components/Layout/Navbar';
 import Toolbar from './components/Toolbar';
-import OnlineUsers from './components/OnlineUsers';
+import Inspector from './components/Canvas/Inspector';
+import AIChatButton from './components/AI/AIChatButton';
 import Canvas from './components/Canvas/Canvas';
 import CanvasControls from './components/Canvas/CanvasControls';
 import { CanvasProvider, useCanvas } from './contexts/ModernCanvasContext';
@@ -41,6 +42,9 @@ function CanvasApp() {
           setSnapToGrid={setSnapToGrid}
         />
         
+        {/* Inspector Panel */}
+        <Inspector />
+        
         {/* Main Canvas Area */}
         <div className="flex-1 relative min-w-0">
           <Canvas 
@@ -49,12 +53,10 @@ function CanvasApp() {
           />
           <CanvasControls />
         </div>
-        
-        {/* Right Panel - Online Users (hidden on very small screens) */}
-        <div className="hidden sm:block">
-          <OnlineUsers />
-        </div>
       </main>
+      
+      {/* Floating AI Chat Button */}
+      <AIChatButton />
     </div>
   );
 }

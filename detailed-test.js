@@ -1,8 +1,7 @@
 import fetch from 'node-fetch';
 
-// Test the production AI endpoint
-async function quickTest() {
-  console.log('🔍 Quick Production Test...\n');
+async function detailedTest() {
+  console.log('🔍 Detailed Production AI Test...\n');
   
   const PRODUCTION_URL = 'https://collab-canvas-virid.vercel.app';
   
@@ -14,16 +13,23 @@ async function quickTest() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         messages: [
-          { role: 'user', content: 'create a blue circle' }
+          {
+            role: 'system',
+            content: 'You are an AI assistant that creates shapes on a canvas. Always use function calls for shape creation.'
+          },
+          {
+            role: 'user',
+            content: 'create a blue circle'
+          }
         ],
         functions: [
           {
             name: 'createShape',
-            description: 'Create a shape',
+            description: 'Create a shape on the canvas',
             parameters: {
               type: 'object',
               properties: {
-                shapeType: { type: 'string' },
+                shapeType: { type: 'string', enum: ['circle', 'rectangle', 'triangle'] },
                 x: { type: 'number' },
                 y: { type: 'number' },
                 fill: { type: 'string' }
@@ -41,18 +47,25 @@ async function quickTest() {
     
     if (response.ok) {
       const data = await response.json();
-      const message = data.choices?.[0]?.message;
+      console.log('\n📥 Full Response:');
+      console.log(JSON.stringify(data, null, 2));
       
-      console.log('✅ Response received');
+      const message = data.choices?.[0]?.message;
+      console.log('\n🔍 Analysis:');
       console.log(`Has function call: ${!!message?.function_call}`);
       console.log(`Function name: ${message?.function_call?.name || 'none'}`);
+      console.log(`Function arguments: ${message?.function_call?.arguments || 'none'}`);
       console.log(`Has content: ${!!message?.content}`);
-      console.log(`Content: ${message?.content?.substring(0, 100)}...`);
+      console.log(`Content: ${message?.content}`);
+      console.log(`Finish reason: ${data.choices?.[0]?.finish_reason}`);
       
       if (message?.function_call) {
-        console.log('🎉 SUCCESS: Function calling is working!');
+        console.log('\n🎉 SUCCESS: Function calling is working!');
+        console.log(`Function: ${message.function_call.name}`);
+        console.log(`Arguments: ${message.function_call.arguments}`);
       } else {
-        console.log('❌ ISSUE: AI is generating text instead of function calls');
+        console.log('\n❌ ISSUE: AI is generating text instead of function calls');
+        console.log('This means the production API is not properly configured for function calling');
       }
     } else {
       const error = await response.text();
@@ -64,4 +77,4 @@ async function quickTest() {
   }
 }
 
-quickTest();
+detailedTest();

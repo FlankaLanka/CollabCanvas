@@ -336,30 +336,40 @@ function Toolbar({ showGrid, setShowGrid, snapToGrid, setSnapToGrid }) {
       <div className="mt-4 pt-4 border-t border-gray-300">
         <div className="text-xs font-medium text-gray-700 mb-3 text-center">Canvas</div>
         
-        {/* Grid Toggle */}
+        {/* Grid Toggle - Improved styling */}
         <div className="mb-3">
-          <label className="flex items-center space-x-2 cursor-pointer text-sm">
-            <input
-              type="checkbox"
-              checked={showGrid}
-              onChange={(e) => setShowGrid(e.target.checked)}
-              className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
-            />
-            <span className="text-gray-700">Grid</span>
-          </label>
+          <button
+            onClick={() => setShowGrid(!showGrid)}
+            className={`w-full px-3 py-2 rounded-lg text-xs font-medium transition-all duration-200 flex items-center justify-center space-x-2 ${
+              showGrid 
+                ? 'bg-blue-100 text-blue-700 border border-blue-200 shadow-sm' 
+                : 'bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200'
+            }`}
+            title={showGrid ? 'Hide grid' : 'Show grid'}
+          >
+            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+            </svg>
+            <span>Grid</span>
+          </button>
         </div>
         
-        {/* Snap to Grid Toggle */}
+        {/* Snap to Grid Toggle - Improved styling */}
         <div className="mb-2">
-          <label className="flex items-center space-x-2 cursor-pointer text-sm">
-            <input
-              type="checkbox"
-              checked={snapToGrid}
-              onChange={(e) => setSnapToGrid(e.target.checked)}
-              className="w-4 h-4 text-green-600 bg-gray-100 border-gray-300 rounded focus:ring-green-500"
-            />
-            <span className="text-gray-700">Snap</span>
-          </label>
+          <button
+            onClick={() => setSnapToGrid(!snapToGrid)}
+            className={`w-full px-3 py-2 rounded-lg text-xs font-medium transition-all duration-200 flex items-center justify-center space-x-2 ${
+              snapToGrid 
+                ? 'bg-green-100 text-green-700 border border-green-200 shadow-sm' 
+                : 'bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200'
+            }`}
+            title={snapToGrid ? 'Disable snap to grid' : 'Enable snap to grid'}
+          >
+            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+            </svg>
+            <span>Snap</span>
+          </button>
         </div>
       </div>
     </div>

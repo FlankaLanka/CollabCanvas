@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { useAuth } from '../../hooks/useAuth';
+import { usePresence } from '../../hooks/usePresence';
 import InteractionGuide from '../Canvas/InteractionGuide';
 
 function Navbar() {
   const { currentUser, logout } = useAuth();
+  const { onlineUsers, getTotalUserCount, isActive } = usePresence();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const handleLogout = async () => {
@@ -70,8 +72,38 @@ function Navbar() {
             <InteractionGuide />
           </div>
 
-          {/* Right side - User menu */}
+          {/* Right side - Users and User menu */}
           <div className="flex items-center space-x-2 sm:space-x-4">
+            {/* Online Users - Google Docs style */}
+            <div className="hidden md:flex items-center space-x-3">
+              <div className="flex items-center space-x-2">
+                <div className={`w-2 h-2 rounded-full ${
+                  currentUser && isActive ? 'bg-green-400' : 'bg-yellow-400'
+                }`}></div>
+                <span className="text-sm text-gray-600">
+                  {getTotalUserCount()} online
+                </span>
+              </div>
+              
+              {/* User avatars */}
+              <div className="flex -space-x-2">
+                {onlineUsers.slice(0, 3).map((user, index) => (
+                  <div
+                    key={user.id}
+                    className="w-6 h-6 rounded-full border-2 border-white flex items-center justify-center text-xs font-medium text-white"
+                    style={{ backgroundColor: user.color || '#3B82F6' }}
+                    title={user.displayName}
+                  >
+                    {user.displayName?.charAt(0)?.toUpperCase() || 'U'}
+                  </div>
+                ))}
+                {onlineUsers.length > 3 && (
+                  <div className="w-6 h-6 rounded-full border-2 border-white bg-gray-400 flex items-center justify-center text-xs font-medium text-white">
+                    +{onlineUsers.length - 3}
+                  </div>
+                )}
+              </div>
+            </div>
             {/* Connection status */}
             <div className="hidden md:flex items-center space-x-2">
               <div className="w-2 h-2 bg-green-400 rounded-full"></div>

@@ -1,14 +1,12 @@
 import fetch from 'node-fetch';
 
-// Test the production AI endpoint
-async function quickTest() {
-  console.log('🔍 Quick Production Test...\n');
+async function minimalTest() {
+  console.log('🔍 Minimal Production Test...\n');
   
   const PRODUCTION_URL = 'https://collab-canvas-virid.vercel.app';
   
   try {
-    console.log(`Testing: ${PRODUCTION_URL}/api/ai-chat`);
-    
+    // Test with the simplest possible request
     const response = await fetch(`${PRODUCTION_URL}/api/ai-chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -25,38 +23,37 @@ async function quickTest() {
               properties: {
                 shapeType: { type: 'string' },
                 x: { type: 'number' },
-                y: { type: 'number' },
-                fill: { type: 'string' }
+                y: { type: 'number' }
               },
               required: ['shapeType', 'x', 'y']
             }
           }
         ],
-        function_call: 'auto',
-        canvasState: { shapes: [], totalShapes: 0 }
+        function_call: 'auto'
       })
     });
     
-    console.log(`Status: ${response.status} ${response.statusText}`);
+    console.log(`Status: ${response.status}`);
     
     if (response.ok) {
       const data = await response.json();
       const message = data.choices?.[0]?.message;
       
-      console.log('✅ Response received');
+      console.log('\n📥 Response:');
       console.log(`Has function call: ${!!message?.function_call}`);
       console.log(`Function name: ${message?.function_call?.name || 'none'}`);
-      console.log(`Has content: ${!!message?.content}`);
       console.log(`Content: ${message?.content?.substring(0, 100)}...`);
       
       if (message?.function_call) {
-        console.log('🎉 SUCCESS: Function calling is working!');
+        console.log('\n🎉 SUCCESS: Function calling is working!');
+        console.log(`Function: ${message.function_call.name}`);
+        console.log(`Arguments: ${message.function_call.arguments}`);
       } else {
-        console.log('❌ ISSUE: AI is generating text instead of function calls');
+        console.log('\n❌ Still not working - AI generating text');
+        console.log('This suggests the production API is not using function calling at all');
       }
     } else {
-      const error = await response.text();
-      console.log(`❌ Error: ${error}`);
+      console.log(`❌ Error: ${response.status}`);
     }
     
   } catch (error) {
@@ -64,4 +61,4 @@ async function quickTest() {
   }
 }
 
-quickTest();
+minimalTest();

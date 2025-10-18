@@ -11,7 +11,7 @@ import { useAI } from '../../hooks/useAI';
  * - Error handling and recovery
  * - Collapsible interface
  */
-function AIChat() {
+function AIChat({ onClose }) {
   const {
     sendMessage,
     clearConversation,

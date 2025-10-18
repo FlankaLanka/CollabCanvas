@@ -7,7 +7,7 @@
  * text instead of function calls. Run this to diagnose the issue.
  */
 
-const fetch = require('node-fetch');
+import fetch from 'node-fetch';
 
 // Configuration
 const PRODUCTION_URL = process.env.VERCEL_URL || 'https://your-app.vercel.app';
@@ -107,8 +107,4 @@ async function testProductionAI() {
 }
 
 // Run the test
-if (require.main === module) {
-  testProductionAI().catch(console.error);
-}
-
-module.exports = { testProductionAI };
+testProductionAI().catch(console.error);
