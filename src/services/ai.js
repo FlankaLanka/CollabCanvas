@@ -12,8 +12,8 @@
  * - Real-time sync across all users
  */
 
-import { SHAPE_TYPES, DEFAULT_SHAPE_PROPS, COLOR_PALETTE } from '../utils/constants';
-import { CanvasReActAgent } from './ai/agent.js';
+// import { SHAPE_TYPES, DEFAULT_SHAPE_PROPS, COLOR_PALETTE } from '../utils/constants';
+// Note: CanvasReActAgent is server-side only, frontend uses HTTP requests
 
 // Environment detection
 const isDevelopment = import.meta.env.DEV;
@@ -23,12 +23,14 @@ const AI_API_ENDPOINT = isDevelopment
   ? 'http://localhost:3001/api/ai-chat'  // Local Express server for development
   : '/api/ai-chat';                       // Vercel/Netlify serverless function for production
 
+// Debug logging removed for production
+
 // AI Function Definitions for Canvas Operations
-const AI_FUNCTIONS = [
+export const AI_FUNCTIONS = [
   // CREATION COMMANDS
   {
     name: 'createShape',
-    description: 'Create a new shape on the canvas',
+    description: 'Create a SINGLE shape on the canvas. Use this ONLY for creating one shape at a time. For multiple shapes, grids, or arrays, use createMultipleShapes instead.',
     parameters: {
       type: 'object',
       properties: {
@@ -90,12 +92,16 @@ const AI_FUNCTIONS = [
           description: 'Natural language description of the shape (e.g., "blue rectangle", "red circle", "large triangle")'
         },
         x: {
-          type: 'number',
-          description: 'New X position'
+          oneOf: [
+            { type: 'number', description: 'New X position' },
+            { type: 'string', description: '"center" for origin (0,0)' }
+          ]
         },
         y: {
-          type: 'number', 
-          description: 'New Y position'
+          oneOf: [
+            { type: 'number', description: 'New Y position' },
+            { type: 'string', description: '"center" for origin (0,0)' }
+          ]
         }
       },
       required: ['shapeId', 'x', 'y']
@@ -197,7 +203,7 @@ const AI_FUNCTIONS = [
   // LAYOUT COMMANDS
   {
     name: 'createMultipleShapes',
-    description: 'Create multiple shapes with automatic layout. Supports grid formats like "3x3" meaning 3 rows and 3 columns (9 total shapes).',
+    description: 'Create multiple shapes with automatic layout. Use this for ANY command involving quantities, grids, or arrays (5 circles, 3x3 grid, 2x4 grid, etc.). CRITICAL: "3x3 grid" means 9 shapes in a 3x3 grid, NOT 1 shape with 3x3 dimensions. ALWAYS use this instead of createShape when count > 1 or when user mentions "grid", "array", or multiple items.',
     parameters: {
       type: 'object',
       properties: {
@@ -237,7 +243,7 @@ const AI_FUNCTIONS = [
         },
         fill: {
           type: 'string',
-          description: 'Color for all shapes'
+          description: 'Color for all shapes (hex code or color name)'
         },
         width: {
           type: 'number',
@@ -246,9 +252,126 @@ const AI_FUNCTIONS = [
         height: {
           type: 'number',
           description: 'Height for each shape (for rectangles)'
+        },
+        radiusX: {
+          type: 'number',
+          description: 'Horizontal radius for circles/ellipses'
+        },
+        radiusY: {
+          type: 'number',
+          description: 'Vertical radius for circles/ellipses'
+        },
+        avoidOverlaps: {
+          type: 'boolean',
+          description: 'Whether to avoid overlapping existing shapes (default: true)'
+        },
+        centerInViewport: {
+          type: 'boolean',
+          description: 'Whether to center the entire group in viewport (default: false)'
+        },
+        marginSize: {
+          type: 'number',
+          description: 'Add margin around the group (in pixels)'
+        },
+        containerWidth: {
+          type: 'number',
+          description: 'For even distribution: the width of the container'
         }
       },
       required: ['shapeType', 'count']
+    }
+  },
+
+  {
+    name: 'arrangeShapesInRow',
+    description: 'Arrange existing shapes in a horizontal row with specified spacing',
+    parameters: {
+      type: 'object',
+      properties: {
+        shapeIds: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Array of shape IDs or descriptions to arrange'
+        },
+        spacing: {
+          type: 'number',
+          description: 'Space between shapes in pixels'
+        },
+        startX: { type: 'number', description: 'Starting X position' },
+        startY: { type: 'number', description: 'Y position for the row' }
+      },
+      required: ['shapeIds']
+    }
+  },
+  {
+    name: 'arrangeShapesInGrid',
+    description: 'Arrange existing shapes in a grid pattern',
+    parameters: {
+      type: 'object',
+      properties: {
+        shapeIds: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Array of shape IDs or descriptions to arrange'
+        },
+        rows: { type: 'number', description: 'Number of rows' },
+        cols: { type: 'number', description: 'Number of columns' },
+        startX: { type: 'number', description: 'Starting X position' },
+        startY: { type: 'number', description: 'Starting Y position' },
+        spacingX: { type: 'number', description: 'Horizontal spacing' },
+        spacingY: { type: 'number', description: 'Vertical spacing' }
+      },
+      required: ['shapeIds', 'rows', 'cols']
+    }
+  },
+  {
+    name: 'distributeShapesEvenly',
+    description: 'Distribute shapes evenly in a container',
+    parameters: {
+      type: 'object',
+      properties: {
+        shapeIds: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Array of shape IDs or descriptions to distribute'
+        },
+        containerWidth: { type: 'number', description: 'Width of the container' },
+        direction: { type: 'string', enum: ['horizontal', 'vertical'], description: 'Distribution direction' }
+      },
+      required: ['shapeIds', 'containerWidth']
+    }
+  },
+  {
+    name: 'centerGroup',
+    description: 'Center a group of shapes at a specific point',
+    parameters: {
+      type: 'object',
+      properties: {
+        shapeIds: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Array of shape IDs or descriptions to center'
+        },
+        centerX: { type: 'number', description: 'X coordinate to center the group' },
+        centerY: { type: 'number', description: 'Y coordinate to center the group' }
+      },
+      required: ['shapeIds']
+    }
+  },
+  {
+    name: 'addGroupMargin',
+    description: 'Add margin around a group of shapes',
+    parameters: {
+      type: 'object',
+      properties: {
+        shapeIds: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Array of shape IDs or descriptions to add margin to'
+        },
+        marginSize: { type: 'number', description: 'Margin size in pixels' }
+      },
+      required: ['shapeIds', 'marginSize']
     }
   },
 
@@ -288,24 +411,24 @@ const AI_FUNCTIONS = [
   // COMPLEX COMMANDS
   {
     name: 'createLoginForm',
-    description: 'Create a complete login form with username, password, and submit button',
+    description: 'Create a professional login form with proper alignment using blueprint system. Generates username/password fields as text_input shapes (NOT rectangles), with labels positioned ABOVE inputs, and centered login button. All elements aligned within a container.',
     parameters: {
       type: 'object',
       properties: {
         x: {
           type: 'number',
-          description: 'X position for the form'
+          description: 'X position for the form (optional, defaults to viewport center)'
         },
         y: {
           type: 'number',
-          description: 'Y position for the form'
+          description: 'Y position for the form (optional, defaults to viewport center)'
         },
         width: {
           type: 'number',
-          description: 'Width of the form (default: 300)'
+          description: 'Width of the form (optional, defaults to 360)'
         }
       },
-      required: ['x', 'y']
+      required: []
     }
   },
 
@@ -421,6 +544,341 @@ const AI_FUNCTIONS = [
       },
       required: ['shapeId']
     }
+  },
+
+  // DESIGN SYSTEM & QUALITY TOOLS
+  {
+    name: 'autoAlignUI',
+    description: 'Auto-align all shapes to 8px grid and fix common alignment issues',
+    parameters: {
+      type: 'object',
+      properties: {},
+      required: []
+    }
+  },
+  {
+    name: 'checkUIQuality',
+    description: 'Check UI quality and return any issues (contrast, alignment, spacing)',
+    parameters: {
+      type: 'object',
+      properties: {},
+      required: []
+    }
+  },
+  {
+    name: 'autoFixUI',
+    description: 'Automatically fix UI quality issues (contrast, alignment, font sizes)',
+    parameters: {
+      type: 'object',
+      properties: {},
+      required: []
+    }
+  },
+  {
+    name: 'layoutStack',
+    description: 'Layout shapes in a vertical or horizontal stack',
+    parameters: {
+      type: 'object',
+      properties: {
+        direction: {
+          type: 'string',
+          enum: ['vertical', 'horizontal'],
+          description: 'Stack direction'
+        },
+        gap: {
+          type: 'number',
+          description: 'Spacing between shapes in pixels'
+        },
+        shapeIds: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Array of shape IDs to layout (optional, uses selection if not provided)'
+        }
+      },
+      required: []
+    }
+  },
+  {
+    name: 'layoutGrid',
+    description: 'Layout shapes in a grid pattern',
+    parameters: {
+      type: 'object',
+      properties: {
+        rows: {
+          type: 'number',
+          description: 'Number of rows in the grid'
+        },
+        cols: {
+          type: 'number',
+          description: 'Number of columns in the grid'
+        },
+        gap: {
+          type: 'number',
+          description: 'Spacing between grid cells in pixels'
+        },
+        shapeIds: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Array of shape IDs to layout (optional, uses selection if not provided)'
+        }
+      },
+      required: ['rows', 'cols']
+    }
+  },
+  {
+    name: 'getSelection',
+    description: 'Get current selection or recently created shapes',
+    parameters: {
+      type: 'object',
+      properties: {},
+      required: []
+    }
+  },
+  {
+    name: 'validateUILayout',
+    description: 'Validate UI layout quality - checks alignment, contrast, spacing, and font sizes',
+    parameters: {
+      type: 'object',
+      properties: {},
+      required: []
+    }
+  },
+  {
+    name: 'createFormContainer',
+    description: 'Create a FormContainer - a centered container for form elements',
+    parameters: {
+      type: 'object',
+      properties: {
+        width: { type: 'number', description: 'Container width (default 360)' },
+        height: { type: 'number', description: 'Container height (default 400)' },
+        centerX: { type: 'number', description: 'Center X position (default 400)' },
+        centerY: { type: 'number', description: 'Center Y position (default 300)' }
+      },
+      required: []
+    }
+  },
+  {
+    name: 'stackVertically',
+    description: 'Stack elements vertically within a container with consistent spacing',
+    parameters: {
+      type: 'object',
+      properties: {
+        elements: { type: 'array', description: 'Array of elements to stack' },
+        container: { type: 'object', description: 'Container object with positioning info' },
+        startY: { type: 'number', description: 'Starting Y position' },
+        gap: { type: 'number', description: 'Gap between elements (default 24)' }
+      },
+      required: ['elements', 'container', 'startY']
+    }
+  },
+  {
+    name: 'alignHorizontally',
+    description: 'Align elements horizontally at the same x position',
+    parameters: {
+      type: 'object',
+      properties: {
+        elements: { type: 'array', description: 'Array of elements to align' },
+        centerX: { type: 'number', description: 'Center X position' },
+        startY: { type: 'number', description: 'Starting Y position' },
+        gap: { type: 'number', description: 'Gap between elements (default 16)' }
+      },
+      required: ['elements', 'centerX', 'startY']
+    }
+  },
+  {
+    name: 'centerContainer',
+    description: 'Calculate center position for a container on the canvas',
+    parameters: {
+      type: 'object',
+      properties: {
+        width: { type: 'number', description: 'Container width' },
+        height: { type: 'number', description: 'Container height' },
+        canvasWidth: { type: 'number', description: 'Canvas width (default 800)' },
+        canvasHeight: { type: 'number', description: 'Canvas height (default 600)' }
+      },
+      required: ['width', 'height']
+    }
+  },
+  {
+    name: 'createLoginFormWithLayout',
+    description: 'PREFERRED: Create a professional login form using advanced blueprint system. Ensures text_input shapes, proper z-index ordering, and perfect alignment.',
+    parameters: {
+      type: 'object',
+      properties: {},
+      required: []
+    }
+  },
+
+  // RELATIVE POSITIONING TOOLS
+  {
+    name: 'placeBelow',
+    description: 'Place a shape directly below another shape with specified gap',
+    parameters: {
+      type: 'object',
+      properties: {
+        shapeId: { type: 'string', description: 'Shape to position' },
+        referenceShapeId: { type: 'string', description: 'Shape to position below' },
+        gap: { type: 'number', description: 'Gap in pixels (default 24)' }
+      },
+      required: ['shapeId', 'referenceShapeId']
+    }
+  },
+  {
+    name: 'placeRightOf',
+    description: 'Place a shape to the right of another shape with specified gap',
+    parameters: {
+      type: 'object',
+      properties: {
+        shapeId: { type: 'string', description: 'Shape to position' },
+        referenceShapeId: { type: 'string', description: 'Shape to position to the right of' },
+        gap: { type: 'number', description: 'Gap in pixels (default 16)' }
+      },
+      required: ['shapeId', 'referenceShapeId']
+    }
+  },
+  {
+    name: 'alignWith',
+    description: 'Align a shape with another shape (left, center, right, top, middle, bottom)',
+    parameters: {
+      type: 'object',
+      properties: {
+        shapeId: { type: 'string', description: 'Shape to align' },
+        referenceShapeId: { type: 'string', description: 'Reference shape' },
+        alignment: { 
+          type: 'string', 
+          enum: ['left', 'center', 'right', 'top', 'middle', 'bottom'],
+          description: 'Alignment type'
+        }
+      },
+      required: ['shapeId', 'referenceShapeId', 'alignment']
+    }
+  },
+  {
+    name: 'centerInContainer',
+    description: 'Center a shape horizontally within its parent container',
+    parameters: {
+      type: 'object',
+      properties: {
+        shapeId: { type: 'string', description: 'Shape to center' },
+        containerId: { type: 'string', description: 'Container ID (optional, auto-detects if not provided)' }
+      },
+      required: ['shapeId']
+    }
+  },
+  {
+    name: 'setPaddingFromContainer',
+    description: 'Set consistent padding between shape and its container edges',
+    parameters: {
+      type: 'object',
+      properties: {
+        shapeId: { type: 'string', description: 'Shape to position' },
+        containerId: { type: 'string', description: 'Container ID' },
+        padding: { type: 'number', description: 'Padding in pixels (default 24)' }
+      },
+      required: ['shapeId', 'containerId']
+    }
+  },
+  {
+    name: 'groupShapes',
+    description: 'Group shapes together to maintain their relative positions',
+    parameters: {
+      type: 'object',
+      properties: {
+        shapeIds: { type: 'array', items: { type: 'string' }, description: 'Array of shape IDs to group' },
+        groupName: { type: 'string', description: 'Optional group name' }
+      },
+      required: ['shapeIds']
+    }
+  },
+  {
+    name: 'distributeInContainer',
+    description: 'Distribute shapes evenly within a container',
+    parameters: {
+      type: 'object',
+      properties: {
+        shapeIds: { type: 'array', items: { type: 'string' }, description: 'Array of shape IDs to distribute' },
+        containerId: { type: 'string', description: 'Container ID' },
+        direction: { type: 'string', enum: ['horizontal', 'vertical'], description: 'Distribution direction' },
+        margin: { type: 'number', description: 'Edge margin (default 20)' }
+      },
+      required: ['shapeIds', 'containerId']
+    }
+  },
+  {
+    name: 'analyzeShapeRelationships',
+    description: 'Analyze spatial relationships between shapes (containers, groups, alignments)',
+    parameters: {
+      type: 'object',
+      properties: {},
+      required: []
+    }
+  },
+  {
+    name: 'validateAndFix',
+    description: 'Enhanced validation with pre/post-action checks and automatic fixes',
+    parameters: {
+      type: 'object',
+      properties: {
+        operationType: { type: 'string', description: 'Type of operation (form, card, layout)' }
+      },
+      required: ['operationType']
+    }
+  },
+
+  // BLUEPRINT SYSTEM TOOLS
+  {
+    name: 'executeBlueprintPlan',
+    description: 'Execute a structured UI blueprint for professional layouts',
+    parameters: {
+      type: 'object',
+      properties: {
+        blueprint: { type: 'object', description: 'Blueprint specification with layout hierarchy and constraints' }
+      },
+      required: ['blueprint']
+    }
+  },
+  {
+    name: 'generateLoginFormBlueprint',
+    description: 'Generate a professional login form blueprint with proper constraints',
+    parameters: {
+      type: 'object',
+      properties: {},
+      required: []
+    }
+  },
+
+  // NATURAL LANGUAGE ROBUSTNESS TOOLS
+  {
+    name: 'parsePositionCommand',
+    description: 'Parse natural language position commands with synonyms and contextual references',
+    parameters: {
+      type: 'object',
+      properties: {
+        command: { type: 'string', description: 'Natural language position command' },
+        shapeDescription: { type: 'string', description: 'Optional shape description for reference' }
+      },
+      required: ['command']
+    }
+  },
+  {
+    name: 'resolveTheseShapes',
+    description: 'Resolve "these shapes" reference to actual shapes (selected, recent, or all)',
+    parameters: {
+      type: 'object',
+      properties: {},
+      required: []
+    }
+  },
+  {
+    name: 'parseSizeDescriptor',
+    description: 'Parse size descriptors (tiny, small, medium, large, huge, very large)',
+    parameters: {
+      type: 'object',
+      properties: {
+        sizeText: { type: 'string', description: 'Size descriptor text' }
+      },
+      required: ['sizeText']
+    }
   }
 ];
 
@@ -433,74 +891,13 @@ export class AICanvasService {
     this.conversationHistory = [];
     this.isProcessing = false;
     
-    // Initialize LangChain ReAct agent for complex reasoning
-    this.reactAgent = new CanvasReActAgent(canvasAPI);
+    // Frontend uses HTTP requests to backend, not direct LangChain
+    console.log('🤖 AICanvasService initialized (frontend mode)');
   }
 
-  /**
-   * Detect if a command requires complex multi-step reasoning
-   */
-  _isComplexCommand(userMessage) {
-    const complexPatterns = [
-      // Multi-step UI creation
-      /login\s+form/i,
-      /registration\s+form/i,
-      /signup\s+form/i,
-      /navigation\s+(bar|menu)/i,
-      /nav\s+(bar|menu)/i,
-      /card\s+layout/i,
-      
-      // Layout and organization requests
-      /arrange.*in.*grid/i,
-      /organize.*evenly/i,
-      /distribute.*evenly/i,
-      /align.*center/i,
-      /make.*same\s+size/i,
-      /resize.*all/i,
-      /create.*grid\s+of/i,
-      /\d+x\d+.*grid/i,
-      /center.*on.*canvas/i,
-      /center\s+it/i,
-      
-      // Styling modifiers with specific attributes
-      /with.*red.*text/i,
-      /with.*blue.*button/i,
-      /with.*\w+.*text/i, // "with [color] text"
-      /with.*color/i,
-      /make.*text.*red/i,
-      /change.*text.*color/i,
-      /red.*text/i,
-      
-      // Multi-object operations
-      /create.*and.*arrange/i,
-      /make.*then.*move/i,
-      /several.*shapes/i,
-      /multiple.*elements/i,
-      /create.*\d+.*shapes/i, // "create 5 shapes"
-      
-      // Complex requests with "and"
-      /create.*and.*make/i,
-      /add.*and.*position/i,
-      /build.*with.*styling/i,
-      /create.*and.*center/i,
-      
-      // Sequential actions indicated by words
-      /first.*then/i,
-      /after.*do/i,
-      /once.*complete/i,
-      /then.*make/i,
-      /then.*change/i,
-      
-      // Requests with multiple requirements
-      /\w+.*and.*\w+.*and/i, // multiple "and" clauses
-      /.*(create|make|add).*and.*(move|position|center|color|style)/i,
-    ];
-    
-    return complexPatterns.some(pattern => pattern.test(userMessage));
-  }
 
   /**
-   * Process a natural language command and execute canvas operations
+   * Process a natural language command
    */
   async processCommand(userMessage) {
     if (this.isProcessing) {
@@ -511,38 +908,250 @@ export class AICanvasService {
     const startTime = Date.now();
 
     try {
-      console.log('🤖 Processing AI command:', userMessage);
+      // Route ALL commands through the server for proper function call execution
+      const isUICommand = /login.*form|generate.*login|create.*login|navigation.*bar|nav.*bar|card.*layout|create.*card/i.test(userMessage);
+      const isBasicCommand = /create.*|draw.*|add.*|make.*|move.*|resize.*|rotate.*|change.*|arrange.*|space.*|grid.*/i.test(userMessage);
+      
+      if (isUICommand || isBasicCommand) {
+        // Use server proxy for UI commands
+        const currentCanvasState = this.canvasAPI.getCanvasState();
+        const response = await fetch(AI_API_ENDPOINT, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            messages: [
+              {
+                role: 'user',
+                content: userMessage
+              }
+            ],
+            temperature: 0.2,
+            canvasState: currentCanvasState
+          })
+        });
 
-      // Check if this is a complex command that requires ReAct reasoning
-      if (this._isComplexCommand(userMessage)) {
-        console.log('🧠 Using ReAct agent for complex command');
-        
-        try {
-          const result = await this.reactAgent.processCommand(userMessage);
-          const processingTime = Date.now() - startTime;
-          
-          return {
-            response: result.response,
-            functionCalls: [], // ReAct agent handles this internally
-            results: [],
-            processingTime,
-            reasoning: result.reasoning,
-            agentUsed: 'react'
-          };
-        } catch (error) {
-          console.warn('⚠️ ReAct agent failed, falling back to standard processing:', error.message);
-          // Fall through to standard processing
+        if (!response.ok) {
+          throw new Error(`Server error: ${response.status}`);
         }
+
+        const result = await response.json();
+        const responseMessage = result.choices[0].message;
+        let aiResponse = responseMessage.content;
+        const processingTime = Date.now() - startTime;
+        
+        console.log('🔍 Server response:', {
+          content: aiResponse,
+          hasFunctionCalls: !!(responseMessage.function_calls),
+          functionCallsCount: responseMessage.function_calls?.length || 0
+        });
+        
+        // Execute function calls if any
+        const functionCalls = [];
+        const results = [];
+        
+        if (responseMessage.function_calls && Array.isArray(responseMessage.function_calls)) {
+          console.log('🔧 Executing multiple function calls:', responseMessage.function_calls.length);
+          for (const functionCall of responseMessage.function_calls) {
+            try {
+              console.log('🔧 Executing function call:', functionCall.name, 'with args:', functionCall.arguments);
+              const result = await this.executeFunctionCall(functionCall);
+              results.push(result);
+              functionCalls.push(functionCall);
+              console.log('✅ Composite function executed successfully:', functionCall.name, 'result:', result);
+            } catch (functionError) {
+              console.error('❌ Composite function execution error:', functionError);
+            }
+          }
+        } else if (responseMessage.function_call) {
+          // Handle single function call
+          const functionCall = responseMessage.function_call;
+          try {
+            console.log('🔧 Executing single function call:', functionCall.name, 'with args:', functionCall.arguments);
+            const result = await this.executeFunctionCall(functionCall);
+            results.push(result);
+            functionCalls.push(functionCall);
+            console.log('✅ Function executed successfully:', functionCall.name, 'result:', result);
+          } catch (functionError) {
+            console.error('❌ Function execution error:', functionError);
+          }
+        } else {
+          console.log('⚠️ No function calls found in response');
+        }
+        
+        // Quality Gate: Check and fix UI issues after UI commands only
+        if (isUICommand) {
+          try {
+            console.log('🔍 Running quality gate for UI command...');
+            
+            // Get current canvas state to understand spatial positions
+            const canvasState = this.canvasAPI.getCanvasState();
+            console.log('📊 Canvas state:', { shapes: canvasState.shapes.length, totalShapes: canvasState.totalShapes });
+            
+            // Validate UI layout quality
+            const validation = await this.canvasAPI.validateUILayout();
+            console.log('🔍 UI validation result:', { valid: validation.valid, score: validation.score, issues: validation.issues.length });
+            
+            if (!validation.valid || validation.issues.length > 0) {
+              console.log('⚠️ Found UI issues:', validation.issues);
+              const fixResult = await this.canvasAPI.autoFixUI();
+              console.log('🔧 Applied quality fixes:', fixResult);
+              aiResponse += ` Applied quality fixes to ensure proper alignment, contrast, and spacing.`;
+            } else {
+              console.log('✅ UI layout is valid');
+            }
+          } catch (qualityError) {
+            console.warn('⚠️ Quality gate error (non-critical):', qualityError);
+          }
+        } else {
+          console.log('🔍 Skipping quality gate for basic command to preserve exact positioning');
+        }
+        
+        return {
+          response: aiResponse,
+          reasoning: [],
+          intermediateSteps: [],
+          processingTime,
+          agentUsed: 'server-ui',
+          functionCalls,
+          results
+        };
+      } else {
+        // Handle basic commands directly with canvas API
+        return await this._processBasicCommand(userMessage, startTime);
       }
-      
-      console.log('🔧 Using standard OpenAI function calling');
-      return await this._processWithFunctionCalling(userMessage, startTime);
-      
     } catch (error) {
-      console.error('❌ AI processing error:', error);
+      console.error('AI processing error:', error);
       throw new Error(`AI processing failed: ${error.message}`);
     } finally {
       this.isProcessing = false;
+    }
+  }
+
+  /**
+   * Process basic commands using OpenAI function calling
+   */
+  async _processBasicCommand(userMessage, startTime) {
+    try {
+      // Refresh canvas context to ensure we have the latest data
+      if (this.canvasAPI.refreshContext) {
+        this.canvasAPI.refreshContext();
+      }
+
+      // Get the most current canvas state
+      const currentCanvasState = this.canvasAPI.getCanvasState();
+      
+      // Add selected shapes to canvas state for layout commands
+      const selectedShapes = this.canvasAPI.canvas.getSelectedShapes 
+        ? this.canvasAPI.canvas.getSelectedShapes()
+        : [];
+      
+      currentCanvasState.selectedShapes = selectedShapes;
+      currentCanvasState.selectedShapeCount = selectedShapes.length;
+
+      // Prepare conversation with system context
+      const messages = [
+        {
+          role: 'system',
+          content: `You are an AI assistant that manipulates a collaborative canvas.
+
+CURRENT CANVAS STATE:
+${JSON.stringify(currentCanvasState, null, 2)}
+
+The server will handle command interpretation automatically. Just pass the user's request as-is.`
+        },
+        {
+          role: 'user',
+          content: userMessage
+        }
+      ];
+
+      // Use server proxy for OpenAI function calling
+      const response = await fetch(AI_API_ENDPOINT, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          messages: messages,
+          functions: AI_FUNCTIONS,
+          function_call: 'auto',
+          canvasState: currentCanvasState
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Server error: ${response.status}`);
+      }
+
+      const completion = await response.json();
+      const responseMessage = completion.choices[0].message;
+      let aiResponse = responseMessage.content || 'I\'ve executed your request.';
+      const functionCalls = [];
+      const results = [];
+
+      // Check for multiple function calls (composite operations) first
+      if (responseMessage.function_calls && Array.isArray(responseMessage.function_calls)) {
+        console.log('🔧 Executing multiple function calls:', responseMessage.function_calls.length);
+        for (const functionCall of responseMessage.function_calls) {
+          try {
+            console.log('🔧 Executing function call:', functionCall.name, 'with args:', functionCall.arguments);
+            const result = await this.executeFunctionCall(functionCall);
+            results.push(result);
+            functionCalls.push(functionCall);
+            console.log('✅ Composite function executed successfully:', functionCall.name, 'result:', result);
+          } catch (functionError) {
+            console.error('❌ Composite function execution error:', functionError);
+          }
+        }
+        aiResponse = responseMessage.content || `✅ Executed ${results.length} operations successfully.`;
+      }
+      // Execute single function call if no multiple calls
+      else if (responseMessage.function_call) {
+        const functionCall = responseMessage.function_call;
+        functionCalls.push(functionCall);
+
+        try {
+          const result = await this.executeFunctionCall(functionCall);
+          results.push(result);
+          console.log('✅ Function executed successfully:', functionCall.name);
+          
+          // Provide conversational response
+          switch (functionCall.name) {
+            case 'createShape':
+              if (result && result.type) {
+                const shapeDesc = this.getShapeDescription(result);
+                aiResponse = `✅ Created! I've added a ${shapeDesc} to the canvas.`;
+              } else {
+                aiResponse = `✅ Done! I've created the shape.`;
+              }
+              break;
+            default:
+              aiResponse = `✅ Done! I've executed your request.`;
+          }
+        } catch (functionError) {
+          console.error('❌ Function execution error:', functionError);
+          aiResponse = `I encountered an error while executing the command: ${functionError.message}`;
+        }
+      }
+
+      // Quality Gate: Skip for basic commands to preserve exact positioning
+      // Only run quality gate for complex UI layouts, not simple shape creation
+      console.log('🔍 Skipping quality gate for basic command to preserve exact positioning');
+
+          const processingTime = Date.now() - startTime;
+          
+          return {
+        response: aiResponse,
+        functionCalls,
+        results,
+            processingTime,
+        agentUsed: 'function-calling'
+          };
+        } catch (error) {
+      console.error('Basic command processing error:', error);
+      throw error;
     }
   }
 
@@ -586,10 +1195,19 @@ ENHANCED COMMAND PARSING:
 - Grid formats: "3x3 grid" → 3 rows, 3 columns = 9 shapes total
 - Shape selection: "these shapes" refers to recently created or currently selected shapes
 
+CRITICAL FUNCTION SELECTION RULES:
+- Use createShape ONLY for single shapes (1 rectangle, 1 circle, etc.)
+- Use createMultipleShapes for ANY command with quantities, grids, or arrays:
+  * "5 circles" → createMultipleShapes with count=5
+  * "3x3 grid of rectangles" → createMultipleShapes with count=9, arrangement=grid
+  * "2x4 grid of circles" → createMultipleShapes with count=8, arrangement=grid
+  * "array of 6 triangles" → createMultipleShapes with count=6
+- NEVER use createShape for grid commands - always use createMultipleShapes
+
 GUIDELINES:
 - ALWAYS use listShapes() first if user asks about existing shapes
 - Create visually appealing, well-positioned layouts
-- Use appropriate colors from the palette: ${COLOR_PALETTE.join(', ')}
+- Use appropriate colors from the palette: blue, red, green, yellow, purple, orange, pink, gray
 - Position elements to avoid overlaps when possible
 - For complex layouts (forms, navigation), create professional spacing
 - Text and text inputs use dark colors (#1F2937) unless on dark backgrounds
@@ -854,6 +1472,15 @@ Alternative: Deploy to Vercel/Netlify to test AI features in production.`;
   }
 
   /**
+   * Get a friendly description of a shape
+   */
+  getShapeDescription(shape) {
+    const color = shape.fill || 'default';
+    const type = shape.type || 'shape';
+    return `${color} ${type}`;
+  }
+
+  /**
    * Execute a function call from the AI
    */
   async executeFunctionCall(functionCall) {
@@ -864,25 +1491,53 @@ Alternative: Deploy to Vercel/Netlify to test AI features in production.`;
 
     switch (name) {
       case 'createShape':
-        return await this.canvasAPI.createShape(parsedArgs);
+        console.log('🔧 Calling canvasAPI.createShape with:', parsedArgs);
+        const result = await this.canvasAPI.createShape(parsedArgs);
+        console.log('🔧 createShape result:', result);
+        return result;
         
       case 'moveShape':
-        return await this.canvasAPI.moveShape(parsedArgs.shapeId, parsedArgs.x, parsedArgs.y);
+        // Handle center positioning
+        let x = parsedArgs.x;
+        let y = parsedArgs.y;
+        
+        // Convert "center" strings to origin (0,0)
+        if (x === 'center' || y === 'center') {
+          if (x === 'center') x = 0;
+          if (y === 'center') y = 0;
+        }
+        
+        return await this.canvasAPI.moveShape(parsedArgs.shapeId || parsedArgs.shapeDescription, x, y);
         
       case 'resizeShape':
-        return await this.canvasAPI.resizeShape(parsedArgs.shapeId, parsedArgs);
+        return await this.canvasAPI.resizeShape(parsedArgs.shapeId || parsedArgs.shapeDescription, parsedArgs);
         
       case 'rotateShape':
-        return await this.canvasAPI.rotateShape(parsedArgs.shapeId, parsedArgs.degrees);
+        return await this.canvasAPI.rotateShape(parsedArgs.shapeId || parsedArgs.shapeDescription, parsedArgs.degrees);
         
       case 'changeShapeColor':
-        return await this.canvasAPI.changeShapeColor(parsedArgs.shapeId, parsedArgs.color);
+        return await this.canvasAPI.changeShapeColor(parsedArgs.shapeId || parsedArgs.shapeDescription, parsedArgs.color);
       
       case 'changeShapeText':
-        return await this.canvasAPI.changeShapeText(parsedArgs.shapeId, parsedArgs.newText);
+        return await this.canvasAPI.changeShapeText(parsedArgs.shapeId || parsedArgs.shapeDescription, parsedArgs.newText);
       
       case 'createMultipleShapes':
         return await this.canvasAPI.createMultipleShapes(parsedArgs);
+        
+      case 'arrangeShapesInRow':
+        return await this.canvasAPI.arrangeInRow(parsedArgs.shapeIds, parsedArgs.startX || 0, parsedArgs.startY || 0, parsedArgs.spacing || 50);
+        
+      case 'arrangeShapesInGrid':
+        return await this.canvasAPI.arrangeInGrid(parsedArgs.shapeIds, parsedArgs.rows, parsedArgs.cols, parsedArgs.startX || 0, parsedArgs.startY || 0, parsedArgs.spacingX || 50, parsedArgs.spacingY || 50);
+        
+      case 'distributeShapesEvenly':
+        return await this.canvasAPI.distributeEvenly(parsedArgs.shapeIds, parsedArgs.containerWidth, parsedArgs.direction || 'horizontal');
+        
+      case 'centerGroup':
+        return await this.canvasAPI.centerGroup(parsedArgs.shapeIds, parsedArgs.centerX || 0, parsedArgs.centerY || 0);
+        
+      case 'addGroupMargin':
+        return await this.canvasAPI.addGroupMargin(parsedArgs.shapeIds, parsedArgs.marginSize);
       
       case 'arrangeShapes':
         // Handle "these shapes" reference
@@ -901,6 +1556,18 @@ Alternative: Deploy to Vercel/Netlify to test AI features in production.`;
         
       case 'createCardLayout':
         return await this.canvasAPI.createCardLayout(parsedArgs);
+        
+      case 'createLoginFormWithLayout':
+        return await this.canvasAPI.createLoginFormWithLayout();
+        
+      case 'arrangeInRow':
+        return await this.canvasAPI.arrangeInRow(parsedArgs.spacing);
+        
+      case 'createGrid':
+        return await this.canvasAPI.createGrid(parsedArgs.rows, parsedArgs.columns, parsedArgs.shapeType, parsedArgs.spacing);
+        
+      case 'distributeEvenly':
+        return await this.canvasAPI.distributeEvenly(parsedArgs.direction);
         
       case 'getCanvasState':
         return this.canvasAPI.getCanvasState();
@@ -926,10 +1593,97 @@ Alternative: Deploy to Vercel/Netlify to test AI features in production.`;
         };
       
       case 'deleteShape':
-        return await this.canvasAPI.deleteShape(parsedArgs.shapeId);
+        return await this.canvasAPI.deleteShape(parsedArgs.shapeId || parsedArgs.shapeDescription);
         
-      default:
-        throw new Error(`Unknown function: ${name}`);
+      case 'autoAlignUI':
+        return await this.canvasAPI.autoAlignUI();
+        
+      case 'checkUIQuality':
+        return await this.canvasAPI.checkUIQuality();
+        
+      case 'autoFixUI':
+        return await this.canvasAPI.autoFixUI();
+        
+      case 'layoutStack':
+        return await this.canvasAPI.layoutStack(parsedArgs);
+        
+      case 'layoutGrid':
+        return await this.canvasAPI.layoutGrid(parsedArgs);
+        
+      case 'getSelection':
+        return this.canvasAPI.getSelection();
+        
+      case 'validateUILayout':
+        return await this.canvasAPI.validateUILayout();
+        
+      case 'createFormContainer':
+        return await this.canvasAPI.createFormContainer(parsedArgs.width, parsedArgs.height, parsedArgs.centerX, parsedArgs.centerY);
+        
+      case 'stackVertically':
+        return await this.canvasAPI.stackVertically(parsedArgs.elements, parsedArgs.container, parsedArgs.startY, parsedArgs.gap);
+        
+      case 'alignHorizontally':
+        return await this.canvasAPI.alignHorizontally(parsedArgs.elements, parsedArgs.centerX, parsedArgs.startY, parsedArgs.gap);
+        
+      case 'centerContainer':
+        return this.canvasAPI.centerContainer(parsedArgs.width, parsedArgs.height, parsedArgs.canvasWidth, parsedArgs.canvasHeight);
+        
+    case 'createLoginFormWithLayout':
+      return await this.canvasAPI.createLoginFormWithLayout();
+      
+    // RELATIVE POSITIONING TOOLS
+    case 'placeBelow':
+      return await this.canvasAPI.placeBelow(parsedArgs.shapeId, parsedArgs.referenceShapeId, parsedArgs.gap);
+      
+    case 'placeRightOf':
+      return await this.canvasAPI.placeRightOf(parsedArgs.shapeId, parsedArgs.referenceShapeId, parsedArgs.gap);
+      
+    case 'alignWith':
+      return await this.canvasAPI.alignWith(parsedArgs.shapeId, parsedArgs.referenceShapeId, parsedArgs.alignment);
+      
+    case 'centerInContainer':
+      return await this.canvasAPI.centerInContainer(parsedArgs.shapeId, parsedArgs.containerId);
+      
+    case 'setPaddingFromContainer':
+      return await this.canvasAPI.setPaddingFromContainer(parsedArgs.shapeId, parsedArgs.containerId, parsedArgs.padding);
+      
+    case 'groupShapes':
+      return await this.canvasAPI.groupShapes(parsedArgs.shapeIds, parsedArgs.groupName);
+      
+    case 'distributeInContainer':
+      return await this.canvasAPI.distributeInContainer(parsedArgs.shapeIds, parsedArgs.containerId, parsedArgs.direction, parsedArgs.margin);
+      
+    case 'analyzeShapeRelationships':
+      return this.canvasAPI.analyzeShapeRelationships();
+      
+    case 'validateAndFix':
+      return await this.canvasAPI.validateAndFix(parsedArgs.operationType);
+      
+    // BLUEPRINT SYSTEM TOOLS
+    case 'executeBlueprintPlan':
+      return await this.canvasAPI.executeBlueprintPlan(parsedArgs.blueprint);
+      
+    case 'generateLoginFormBlueprint':
+      return this.canvasAPI.generateLoginFormBlueprint();
+      
+    // NATURAL LANGUAGE ROBUSTNESS TOOLS
+    case 'parsePositionCommand':
+      return this.canvasAPI.parsePositionCommand(parsedArgs.command, parsedArgs.shapeDescription);
+      
+      case 'resolveTheseShapes':
+        return this.canvasAPI.resolveTheseShapes();
+        
+      case 'fixRotationValues':
+        return await this.canvasAPI.fixRotationValues();
+        
+      case 'convertShapeRotationToDegrees':
+        return await this.canvasAPI.convertShapeRotationToDegrees(parsedArgs.shapeId);
+      
+    case 'parseSizeDescriptor':
+      return this.canvasAPI.parseSizeDescriptor(parsedArgs.sizeText);
+      
+    default:
+      throw new Error(`Unknown function: ${name}`);
     }
   }
 

@@ -43,7 +43,7 @@ export const DEFAULT_SHAPE_PROPS = {
     zIndex: 0
   },
   [SHAPE_TYPES.TRIANGLE]: {
-    points: [0, -40, -35, 30, 35, 30], // Equilateral triangle
+    points: [0, -46.67, -35, 23.33, 35, 23.33], // Equilateral triangle centered around (0,0)
     fill: '#EF4444',
     closed: true,
     zIndex: 0

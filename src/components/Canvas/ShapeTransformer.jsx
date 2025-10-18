@@ -94,7 +94,7 @@ function ShapeTransformer() {
         const attrs = node.attrs;
         const position = node.position();
         const scale = node.scale();
-        const rotation = node.rotation(); // Konva rotation is already in radians
+        const rotation = node.rotation(); // Konva rotation in degrees
 
         console.log('🔍 Transform data for shape', shapeId, ':', {
           position,
@@ -107,8 +107,15 @@ function ShapeTransformer() {
         let updates = {
           x: Math.round(position.x), // Round to avoid floating point precision issues
           y: Math.round(position.y),
-          rotation: Math.round(rotation * (180 / Math.PI) * 100) / 100 // Convert to degrees with 2 decimal precision
+          rotation: Math.round(rotation * 100) / 100 // Keep in degrees with 2 decimal precision
         };
+        
+        // Ensure rotation is stored in degrees (0-360 range)
+        if (updates.rotation < 0) {
+          updates.rotation = ((updates.rotation % 360) + 360) % 360;
+        } else if (updates.rotation >= 360) {
+          updates.rotation = updates.rotation % 360;
+        }
 
         // Handle scale based on shape type
         if (node.className === 'Rect') {

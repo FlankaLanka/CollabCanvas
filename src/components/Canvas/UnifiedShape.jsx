@@ -399,23 +399,24 @@ function UnifiedShape({ shape, isSelected, updateCursor, snapToGrid = false }) {
   }, [isSelected, isDragging]);
 
   // Common props for all shapes
-  const rotationRadians = (shape.rotation || 0) * (Math.PI / 180);
+  const rotationDegrees = shape.rotation || 0;
   
   // Debug rotation
   if (shape.rotation && shape.rotation !== 0) {
     console.log('🎯 Shape rotation:', {
       shapeId: shape.id,
       storedDegrees: shape.rotation,
-      convertedRadians: rotationRadians,
+      rotationDegrees: rotationDegrees,
       shouldBe45Deg: shape.rotation === 45,
-      actualRadians: rotationRadians
+      trianglePoints: shape.points,
+      expected90Deg: shape.rotation === 90 ? 'Should point RIGHT' : 'Not 90 degrees'
     });
   }
   
   const commonProps = {
     x: shape.x,
     y: shape.y,
-    rotation: rotationRadians, // Convert degrees to radians for Konva
+    rotation: rotationDegrees, // Use degrees directly
     scaleX: shape.scaleX || 1,
     scaleY: shape.scaleY || 1,
     
@@ -424,11 +425,13 @@ function UnifiedShape({ shape, isSelected, updateCursor, snapToGrid = false }) {
              shape.type === SHAPE_TYPES.CIRCLE ? 0 : // Circles are already center-positioned in Konva
              shape.type === SHAPE_TYPES.LINE ? 0 : // Lines use their points for positioning
              shape.type === SHAPE_TYPES.BEZIER_CURVE ? 0 : // Bezier curves are now centered around (0,0)
+             shape.type === SHAPE_TYPES.TRIANGLE ? 0 : // Triangle points are already centered around (0,0)
              shape.type === SHAPE_TYPES.TEXT || shape.type === SHAPE_TYPES.TEXT_INPUT ? (shape.width || 200) / 2 : 0,
     offsetY: shape.type === SHAPE_TYPES.RECTANGLE ? (shape.height || 100) / 2 : 
              shape.type === SHAPE_TYPES.CIRCLE ? 0 : // Circles are already center-positioned in Konva
              shape.type === SHAPE_TYPES.LINE ? 0 : // Lines use their points for positioning
              shape.type === SHAPE_TYPES.BEZIER_CURVE ? 0 : // Bezier curves are now centered around (0,0)
+             shape.type === SHAPE_TYPES.TRIANGLE ? 0 : // Triangle points are already centered around (0,0)
              shape.type === SHAPE_TYPES.TEXT_INPUT ? (shape.height || 40) / 2 : 0,
     
     ...getShapeStyles(),
@@ -634,7 +637,7 @@ function UnifiedShape({ shape, isSelected, updateCursor, snapToGrid = false }) {
                 // Get current anchor point position
                 let newPosition = { x: e.target.x(), y: e.target.y() };
                 
-                // Apply grid snapping if enabled
+                // Apply grid snapping if enabled (anchor points are always user-initiated)
                 if (shouldSnapToGrid(snapToGrid)) {
                   const snappedPos = snapPointToGrid(newPosition, stageScale);
                   newPosition = snappedPos;

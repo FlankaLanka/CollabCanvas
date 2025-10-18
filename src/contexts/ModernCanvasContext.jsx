@@ -94,18 +94,17 @@ export function CanvasProvider({ children }) {
         // Apply any pending position updates for this shape
         const pendingUpdate = pendingUpdatesRef.current.get(shape.id);
         if (pendingUpdate) {
-          console.log('🔄 Applying cached position update for newly loaded shape:', shape.id, {
-            x: pendingUpdate.x, 
-            y: pendingUpdate.y,
-            age: Date.now() - pendingUpdate.timestamp + 'ms'
-          });
+          const originalPosition = { x: shape.x, y: shape.y };
           shape.x = pendingUpdate.x;
           shape.y = pendingUpdate.y;
           pendingUpdatesRef.current.delete(shape.id);
+          
+          // Log successful application of cached update
+          console.log(`✅ Applied cached position update for shape ${shape.id.substring(0, 20)}...:`, 
+            `(${originalPosition.x}, ${originalPosition.y}) → (${shape.x}, ${shape.y})`);
         }
       });
       triggerUpdate(); // Force React re-render when shapes sync from database
-      console.log('🔄 Synced shapes to store:', syncedShapes.length);
     }
   }, [syncedShapes, store, triggerUpdate]);
 
@@ -132,12 +131,10 @@ export function CanvasProvider({ children }) {
         // Only block real-time updates if WE are currently dragging this shape locally
         // Allow updates from other users even if the shape is selected
         if (!store.isDragging) {
-          console.log('📡 Applying real-time update for shape:', id, shape.type, 'from:', {x: shape.x, y: shape.y}, 'to:', pos);
           shape.x = pos.x;
           shape.y = pos.y;
           updatedAny = true;
         } else {
-          console.log('🚫 Blocked real-time update (local drag active) for shape:', id, shape.type, pos);
         }
       } else {
         // Shape doesn't exist yet - this is normal in collaborative environments
@@ -151,8 +148,7 @@ export function CanvasProvider({ children }) {
         const now = Date.now();
         const lastLog = unknownShapeLogThrottle.current.get(id) || 0;
         if (now - lastLog > 5000 && process.env.NODE_ENV === 'development') {
-          console.warn('⏳ Position update received for pending shape:', id.substring(0, 20) + '...', 
-            '(Normal in collaborative mode - cached for when shape loads)');
+          console.warn('Position update received for unknown shape:', id.substring(0, 20) + '...', '(Normal in collaborative mode - cached for when shape loads)');
           unknownShapeLogThrottle.current.set(id, now);
         }
       }
@@ -166,30 +162,67 @@ export function CanvasProvider({ children }) {
 
   useRealtimePositions(handleRealtimePositionUpdate);
 
-  // Cleanup stale pending updates periodically
+  // ===== ORPHANED UPDATE CLEANUP SYSTEM =====
+  
+  /**
+   * Clean up orphaned position updates that have been cached for too long
+   * This prevents memory buildup from stale updates that will never be applied
+   */
+  const cleanupOrphanedUpdates = useCallback((timeoutMs = 60000) => {
+    const now = Date.now();
+    const staleThreshold = timeoutMs;
+    let removedCount = 0;
+    const removedShapeIds = [];
+    
+    // Clean up pending updates older than threshold
+    for (const [shapeId, update] of pendingUpdatesRef.current.entries()) {
+      if (update.timestamp && (now - update.timestamp > staleThreshold)) {
+        // Check if shape exists in current canvas state before removing
+        const shapeExists = store.shapes.has(shapeId);
+        if (!shapeExists) {
+          pendingUpdatesRef.current.delete(shapeId);
+          removedCount++;
+          removedShapeIds.push(shapeId);
+        }
+      }
+    }
+    
+    // Clean up throttle map entries older than threshold
+    for (const [shapeId, timestamp] of unknownShapeLogThrottle.current.entries()) {
+      if (now - timestamp > staleThreshold) {
+        unknownShapeLogThrottle.current.delete(shapeId);
+      }
+    }
+    
+    // Log cleanup results
+    if (removedCount > 0) {
+      console.log(`🧹 Cleaned up ${removedCount} orphaned position updates:`, 
+        removedShapeIds.map(id => id.substring(0, 20) + '...'));
+    }
+    
+    return { removedCount, removedShapeIds };
+  }, [store.shapes]);
+
+  /**
+   * Get current count of orphaned updates for monitoring
+   */
+  const getOrphanedUpdateCount = useCallback(() => {
+    return pendingUpdatesRef.current.size;
+  }, []);
+
+  // Schedule periodic cleanup and metrics logging
   useEffect(() => {
     const cleanupInterval = setInterval(() => {
-      const now = Date.now();
-      const staleThreshold = 30000; // 30 seconds
+      const beforeCount = getOrphanedUpdateCount();
+      const result = cleanupOrphanedUpdates(60000); // 1 minute timeout
+      const afterCount = getOrphanedUpdateCount();
       
-      // Clean up pending updates older than threshold
-      for (const [shapeId, update] of pendingUpdatesRef.current.entries()) {
-        if (update.timestamp && (now - update.timestamp > staleThreshold)) {
-          console.log('🧹 Cleaning up stale pending update for shape:', shapeId);
-          pendingUpdatesRef.current.delete(shapeId);
-        }
-      }
-      
-      // Clean up throttle map entries older than threshold
-      for (const [shapeId, timestamp] of unknownShapeLogThrottle.current.entries()) {
-        if (now - timestamp > staleThreshold) {
-          unknownShapeLogThrottle.current.delete(shapeId);
-        }
-      }
-    }, 60000); // Run cleanup every minute
+      // Log metrics every cleanup cycle
+      console.log(`📊 Orphaned Updates Metrics: ${beforeCount} → ${afterCount} (removed: ${result.removedCount})`);
+    }, 120000); // Run cleanup every 2 minutes
     
     return () => clearInterval(cleanupInterval);
-  }, []);
+  }, [cleanupOrphanedUpdates, getOrphanedUpdateCount]);
 
   // ===== SIMPLE ACTION IMPLEMENTATIONS =====
 
@@ -200,7 +233,6 @@ export function CanvasProvider({ children }) {
     store.selectedIds.clear();
     store.selectedIds.add(id);
     triggerUpdate(); // Force React re-render
-    console.log('🎯 Shape selected:', id);
   }, [store, triggerUpdate]);
 
   /**
@@ -209,10 +241,8 @@ export function CanvasProvider({ children }) {
   const toggleShapeSelection = useCallback((id) => {
     if (store.selectedIds.has(id)) {
       store.selectedIds.delete(id);
-      console.log('🎯 Shape deselected:', id);
     } else {
       store.selectedIds.add(id);
-      console.log('🎯 Shape added to selection:', id);
     }
     triggerUpdate(); // Force React re-render
   }, [store, triggerUpdate]);
@@ -421,6 +451,8 @@ export function CanvasProvider({ children }) {
    * Add new shape with database sync
    */
   const addShape = useCallback(async (shapeData) => {
+    console.log(`🎨 addShape called with data:`, shapeData);
+    
     const currentUser = getCurrentUser();
     const timestamp = Date.now();
     const userId = currentUser?.uid?.substring(0, 8) || 'anon';
@@ -429,8 +461,8 @@ export function CanvasProvider({ children }) {
     const newShape = {
       id: `shape-${userId}-${timestamp}-${random}`,
       type: shapeData.type || 'rectangle',
-      x: shapeData.x || 100,
-      y: shapeData.y || 100,
+      x: shapeData.x || 0,
+      y: shapeData.y || 0,
       zIndex: getMaxZIndex() + 1, // Place new shapes on top
       width: shapeData.width || DEFAULT_SHAPE.width,
       height: shapeData.height || DEFAULT_SHAPE.height,
@@ -442,19 +474,35 @@ export function CanvasProvider({ children }) {
       createdAt: timestamp,
       ...shapeData
     };
+    
+    console.log(`🎨 Created new shape object:`, newShape);
 
     try {
       // Add to store immediately for responsive UI
+      console.log(`📦 Adding shape to store:`, newShape.id);
       store.shapes.set(newShape.id, newShape);
+      console.log(`📦 Store now has ${store.shapes.size} shapes`);
       selectShape(newShape.id); // This already triggers re-render
       
       // Send position to real-time for immediate visibility to other users
       forceUpdateShapePosition(newShape.id, { x: newShape.x, y: newShape.y });
       
       // Sync to database for persistence
-      await createSyncedShape(newShape);
+      console.log(`🔄 Syncing shape ${newShape.id} to database...`);
+      try {
+        await createSyncedShape(newShape);
+        console.log('✅ Shape synced to database successfully:', newShape.id);
+      } catch (syncError) {
+        console.error('❌ Failed to sync shape to database:', syncError);
+        console.error('❌ Shape will remain in local store but may not persist:', newShape.id);
+        // Don't throw here - the shape is already in the local store
+      }
       
       console.log('✅ Shape created locally and synced to database + real-time:', newShape.id);
+      
+      // Trigger cleanup after shape creation to clean up any orphaned updates
+      cleanupOrphanedUpdates(30000); // 30 second timeout for immediate cleanup
+      
       return newShape;
       
     } catch (error) {
@@ -877,6 +925,9 @@ export function CanvasProvider({ children }) {
     try {
       await createSyncedShape(newShape);
       console.log('✅ Drawing saved as shape:', newShape.id);
+      
+      // Trigger cleanup after drawing completion
+      cleanupOrphanedUpdates(30000); // 30 second timeout for immediate cleanup
     } catch (error) {
       console.error('❌ Error saving drawing:', error);
     }
@@ -992,7 +1043,11 @@ export function CanvasProvider({ children }) {
     localDragStates: store.locallyDraggedShapes || new Set(),
     clearRealtimePosition: (id) => {
       // Not needed with new architecture but kept for compatibility
-    }
+    },
+    
+    // Orphaned update cleanup functions
+    cleanupOrphanedUpdates,
+    getOrphanedUpdateCount
   };
 
   return (

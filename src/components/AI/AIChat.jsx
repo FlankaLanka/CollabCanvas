@@ -76,20 +76,25 @@ function AIChat() {
 
   // Example commands for user guidance
   const exampleCommands = [
-    // Creation examples
-    "Create a red circle at position 200, 300",
-    "Add a text that says 'Hello World'",
-    "Make a blue rectangle 150x100 pixels",
+    // Creation Commands (at least 2 required)
+    "Create a red circle at position 100, 200",
+    "Add a text layer that says 'Hello World'",
+    "Make a 200x300 rectangle",
     
-    // Layout examples
-    "Create 5 circles in a row",
-    "Make a 3x3 grid of squares",
-    "Arrange the shapes in a circle",
+    // Manipulation Commands (at least 2 required)
+    "Move the blue rectangle to the center",
+    "Resize the circle to be twice as big",
+    "Rotate the text 45 degrees",
     
-    // Complex examples
-    "Create a login form",
-    "Build a navigation bar with Home, About, Contact",
-    "Make a card with title 'Welcome' and content 'Get started'"
+    // Layout Commands (at least 1 required)
+    "Arrange these shapes in a horizontal row",
+    "Create a grid of 3x3 squares",
+    "Space these elements evenly",
+    
+    // Complex Commands (at least 1 required)
+    "Create a login form with username and password fields",
+    "Build a navigation bar with 4 menu items",
+    "Make a card layout with title, image, and description"
   ];
 
   // Get AI status for performance display
