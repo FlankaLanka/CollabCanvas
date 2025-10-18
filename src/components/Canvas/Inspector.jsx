@@ -1,6 +1,154 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useCanvas } from '../../contexts/ModernCanvasContext';
 import { SHAPE_TYPES } from '../../utils/constants';
+
+// ScalarInput component for number inputs with proper validation
+const ScalarInput = ({ label, value, onChange, min, max, step = 1, precision = 0, unit = "" }) => {
+  const [localValue, setLocalValue] = useState(value);
+  const [isFocused, setIsFocused] = useState(false);
+
+  useEffect(() => {
+    if (!isFocused) setLocalValue(value);
+  }, [value, isFocused]);
+
+  const handleBlur = (e) => {
+    setIsFocused(false);
+    const numValue = parseFloat(e.target.value);
+    if (!isNaN(numValue)) {
+      const clampedValue = Math.min(Math.max(numValue, min || -Infinity), max || Infinity);
+      setLocalValue(clampedValue);
+      onChange(clampedValue);
+    } else {
+      setLocalValue(value); // Reset to original value if invalid
+    }
+  };
+
+  return (
+    <div className="mb-2">
+      <label className="block text-xs font-medium text-gray-700 mb-1">{label}</label>
+      <div>
+        <input
+          type="number"
+          value={isFocused ? localValue : parseFloat(value).toFixed(precision)}
+          onChange={(e) => setLocalValue(e.target.value)}
+          onFocus={() => setIsFocused(true)}
+          onBlur={handleBlur}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.target.blur();
+            }
+          }}
+          className="w-full px-2 py-1 text-xs text-gray-900 bg-white border border-gray-300 rounded focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+          min={min}
+          max={max}
+          step={step}
+        />
+        {unit && <span className="text-xs text-gray-500 ml-1">{unit}</span>}
+      </div>
+    </div>
+  );
+};
+
+// ColorPicker component with RGB sliders
+const ColorPicker = ({ color, onChange }) => {
+  const [localColor, setLocalColor] = useState(color);
+
+  useEffect(() => {
+    setLocalColor(color);
+  }, [color]);
+
+  // Convert hex to RGB
+  const hexToRgb = (hex) => {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    return result ? {
+      r: parseInt(result[1], 16),
+      g: parseInt(result[2], 16),
+      b: parseInt(result[3], 16)
+    } : { r: 0, g: 0, b: 0 };
+  };
+
+  // Convert RGB to hex
+  const rgbToHex = (r, g, b) => {
+    return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+  };
+
+  const rgb = hexToRgb(localColor);
+
+  const handleRgbChange = (component, value) => {
+    const numValue = parseInt(value);
+    if (isNaN(numValue) || numValue < 0 || numValue > 255) return;
+    
+    const newRgb = { ...rgb, [component]: numValue };
+    const newHex = rgbToHex(newRgb.r, newRgb.g, newRgb.b);
+    
+    setLocalColor(newHex);
+    onChange(newHex);
+  };
+
+  return (
+    <div className="mb-2">
+      <label className="block text-xs font-medium text-gray-700 mb-1">Color</label>
+      
+      {/* Color preview */}
+      <div className="flex items-center space-x-2 mb-2 p-2 bg-white border border-gray-300 rounded">
+        <div 
+          className="w-5 h-5 rounded border border-gray-300 shadow-sm"
+          style={{ backgroundColor: localColor }}
+        />
+        <span className="text-xs font-mono text-gray-900">{localColor}</span>
+      </div>
+
+      {/* RGB Sliders */}
+      <div className="space-y-2">
+        <div>
+          <div className="flex justify-between items-center mb-1">
+            <label className="text-xs text-red-600 font-medium">R</label>
+            <span className="text-xs text-gray-600">{rgb.r}</span>
+          </div>
+          <input
+            type="range"
+            min="0"
+            max="255"
+            value={rgb.r}
+            onChange={(e) => handleRgbChange('r', e.target.value)}
+            className="w-full h-2 bg-red-200 rounded-lg appearance-none cursor-pointer"
+            step="1"
+          />
+        </div>
+        <div>
+          <div className="flex justify-between items-center mb-1">
+            <label className="text-xs text-green-600 font-medium">G</label>
+            <span className="text-xs text-gray-600">{rgb.g}</span>
+          </div>
+          <input
+            type="range"
+            min="0"
+            max="255"
+            value={rgb.g}
+            onChange={(e) => handleRgbChange('g', e.target.value)}
+            className="w-full h-2 bg-green-200 rounded-lg appearance-none cursor-pointer"
+            step="1"
+          />
+        </div>
+        <div>
+          <div className="flex justify-between items-center mb-1">
+            <label className="text-xs text-blue-600 font-medium">B</label>
+            <span className="text-xs text-gray-600">{rgb.b}</span>
+          </div>
+          <input
+            type="range"
+            min="0"
+            max="255"
+            value={rgb.b}
+            onChange={(e) => handleRgbChange('b', e.target.value)}
+            className="w-full h-2 bg-blue-200 rounded-lg appearance-none cursor-pointer"
+            step="1"
+          />
+        </div>
+      </div>
+    </div>
+  );
+};
 
 /**
  * Inspector Component - Properties panel for selected shapes
@@ -25,6 +173,9 @@ function Inspector() {
   
   // Local state for form inputs (to avoid constant re-renders)
   const [localProperties, setLocalProperties] = useState({});
+  
+  // Color sync timeout ref for debouncing color changes
+  const colorSyncTimeoutRef = useRef(null);
   
   // Update local properties when selection changes
   useEffect(() => {
@@ -102,10 +253,42 @@ function Inspector() {
     updateShapeProperty('scaleY', newValue);
   };
 
-  const handleColorChange = (color) => {
+  // Handle color changes with immediate local update and debounced database sync
+  const handleColorChange = useCallback((color) => {
+    if (!selectedShape || !store) return;
+    
+    // Update local properties immediately for smooth UI
     setLocalProperties(prev => ({ ...prev, fill: color }));
-    updateShapeProperty('fill', color);
-  };
+    
+    // Determine the appropriate property based on shape type
+    const colorProperty = (selectedShape.type === SHAPE_TYPES.BEZIER_CURVE || selectedShape.type === SHAPE_TYPES.LINE) ? 'stroke' : 'fill';
+    
+    // IMMEDIATE: Update the local shape object for instant visual feedback
+    const localShape = store.shapes.get(selectedShape.id);
+    if (localShape) {
+      localShape[colorProperty] = color;
+      // Trigger re-render by updating a dummy timestamp (forces React to re-render)
+      localShape._lastColorUpdate = Date.now();
+    }
+    
+    // Clear existing timeout
+    if (colorSyncTimeoutRef.current) {
+      clearTimeout(colorSyncTimeoutRef.current);
+    }
+    
+    // DEBOUNCED: Sync to database after user stops moving slider for 150ms
+    colorSyncTimeoutRef.current = setTimeout(() => {
+      console.log('🎨 Color syncing to database:', {
+        shapeType: selectedShape.type,
+        shapeId: selectedShape.id,
+        colorProperty,
+        newColor: color
+      });
+      
+      updateShapeProperty(colorProperty, color);
+    }, 150);
+    
+  }, [updateShapeProperty, selectedShape, store]);
 
   const handleTextChange = (value) => {
     setLocalProperties(prev => ({ ...prev, text: value }));
@@ -372,30 +555,27 @@ function Inspector() {
                 </button>
               </div>
 
-              <div>
-                <label className="block text-xs text-gray-600 mb-1">Smoothing</label>
-                <input
-                  type="number"
-                  value={Math.round((selectedShape?.smoothing ?? 0.3) * 100)}
-                  onChange={(e) => updateShapeProperty('smoothing', parseFloat(e.target.value) / 100)}
-                  min={0}
-                  max={100}
-                  step={5}
-                  className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
+              <ScalarInput
+                label="Smoothing"
+                value={(selectedShape?.smoothing ?? 0.3) * 100}
+                onChange={(value) => updateShapeProperty('smoothing', value / 100)}
+                unit="%"
+                min={0}
+                max={100}
+                step={5}
+                precision={0}
+              />
 
-              <div>
-                <label className="block text-xs text-gray-600 mb-1">Stroke Width</label>
-                <input
-                  type="number"
-                  value={selectedShape?.strokeWidth || 3}
-                  onChange={(e) => updateShapeProperty('strokeWidth', parseInt(e.target.value))}
-                  min={1}
-                  max={20}
-                  className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
+              <ScalarInput
+                label="Stroke Width"
+                value={selectedShape?.strokeWidth || 3}
+                onChange={(value) => updateShapeProperty('strokeWidth', value)}
+                unit="px"
+                min={1}
+                max={20}
+                step={1}
+                precision={0}
+              />
             </div>
           </div>
         )}
@@ -409,41 +589,10 @@ function Inspector() {
             <h4 className="text-sm font-medium text-gray-800">Appearance</h4>
           </div>
           
-          <div className="space-y-2">
-            <div>
-              <label className="block text-xs text-gray-600 mb-1">Fill Color</label>
-              <div className="flex items-center space-x-2">
-                <div 
-                  className="w-6 h-6 rounded border border-gray-300"
-                  style={{ backgroundColor: localProperties.fill || '#3B82F6' }}
-                ></div>
-                <input
-                  type="text"
-                  value={localProperties.fill || '#3B82F6'}
-                  onChange={(e) => handleColorChange(e.target.value)}
-                  className="flex-1 px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-            </div>
-            
-            {selectedShape.stroke && (
-              <div>
-                <label className="block text-xs text-gray-600 mb-1">Stroke Color</label>
-                <div className="flex items-center space-x-2">
-                  <div 
-                    className="w-6 h-6 rounded border border-gray-300"
-                    style={{ backgroundColor: selectedShape.stroke }}
-                  ></div>
-                  <input
-                    type="text"
-                    value={selectedShape.stroke}
-                    onChange={(e) => updateShapeProperty('stroke', e.target.value)}
-                    className="flex-1 px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                  />
-                </div>
-              </div>
-            )}
-          </div>
+          <ColorPicker
+            color={localProperties.fill || '#3B82F6'}
+            onChange={handleColorChange}
+          />
         </div>
 
         {/* Debug Info */}
