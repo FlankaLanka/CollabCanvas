@@ -101,4 +101,4 @@ firestore-debug.log
 ui-debug.log
 
 # Vercel
-.vercel
+.vercelaws-ai-server/.serverless/
