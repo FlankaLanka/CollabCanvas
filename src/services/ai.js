@@ -21,7 +21,7 @@ const isDevelopment = import.meta.env.DEV;
 // API endpoint configuration
 const AI_API_ENDPOINT = isDevelopment 
   ? 'http://localhost:3001/api/ai-chat'  // Local Express server for development
-  : '/api/ai-chat';                       // Vercel/Netlify serverless function for production
+  : '/api/ai-chat-new';                   // New Vercel serverless function for production
 
 // Debug logging removed for production
 
