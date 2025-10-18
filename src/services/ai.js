@@ -1,16 +1,6 @@
-/**
- * AI Canvas Agent - OpenAI Integration with LangChain ReAct Reasoning
- * 
- * A comprehensive AI agent that manipulates the collaborative canvas through natural language
- * using both OpenAI's function calling capabilities and LangChain ReAct reasoning for complex tasks.
- * 
- * Features:
- * - Simple commands: Direct OpenAI function calling (fast execution)
- * - Complex commands: LangChain ReAct reasoning (multi-step planning)
- * - 6+ distinct command categories (Creation, Manipulation, Layout, Complex)
- * - Multi-user support without conflicts
- * - Real-time sync across all users
- */
+// AI Canvas Agent - OpenAI Integration with LangChain ReAct Reasoning
+// A comprehensive AI agent that manipulates the collaborative canvas through natural language
+// using both OpenAI's function calling capabilities and LangChain ReAct reasoning for complex tasks.
 
 // import { SHAPE_TYPES, DEFAULT_SHAPE_PROPS, COLOR_PALETTE } from '../utils/constants';
 // Note: CanvasReActAgent is server-side only, frontend uses HTTP requests
@@ -21,7 +11,7 @@ const isDevelopment = import.meta.env.DEV;
 // API endpoint configuration
 const AI_API_ENDPOINT = isDevelopment 
   ? 'http://localhost:3001/api/ai-chat'  // Local Express server for development
-  : 'https://vtxv073yg9.execute-api.us-east-1.amazonaws.com';  // AWS-hosted AI agent
+  : 'https://vtxv073yg9.execute-api.us-east-1.amazonaws.com/api/ai-chat';  // AWS-hosted AI agent
 
 // Debug logging removed for production
 
