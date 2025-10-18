@@ -154,6 +154,7 @@ Be helpful and creative while following the user's intent precisely. Always resp
       max_tokens: 2000,
     };
     
+    // DEBUG: Log the exact request being sent to OpenAI
     console.log('📤 AI Chat v2 - OpenAI API Request Debug:', {
       model: openaiRequestBody.model,
       hasFunctions: !!openaiRequestBody.functions,
