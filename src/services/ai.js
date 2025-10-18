@@ -9,9 +9,8 @@
 const isDevelopment = import.meta.env.DEV;
 
 // API endpoint configuration
-const AI_API_ENDPOINT = isDevelopment 
-  ? 'http://localhost:3001/api/ai-chat'  // Local Express server for development
-  : 'https://vtxv073yg9.execute-api.us-east-1.amazonaws.com/api/ai-chat';  // AWS-hosted AI agent
+// Use AWS for both development and production
+const AI_API_ENDPOINT = 'https://vtxv073yg9.execute-api.us-east-1.amazonaws.com/api/ai-chat';
 
 // Debug logging removed for production
 
@@ -1028,9 +1027,7 @@ export class AICanvasService {
     }
   }
 
-  //
-   // Process basic commands using OpenAI function calling
-   //
+  // Process basic commands using OpenAI function calling
   async _processBasicCommand(userMessage, startTime) {
     try {
       // Refresh canvas context to ensure we have the latest data
@@ -1154,9 +1151,7 @@ The server will handle command interpretation automatically. Just pass the user'
     }
   }
 
-  //
-   // Process command using the original OpenAI function calling approach
-   //
+  // Process command using the original OpenAI function calling approach
   async _processWithFunctionCalling(userMessage, startTime) {
       // Refresh canvas context to ensure we have the latest data
       if (this.canvasAPI.refreshContext) {
@@ -1539,18 +1534,14 @@ Alternative: Deploy to Vercel/Netlify to test AI features in production.`;
       };
   }
 
-  //
-   // Get a friendly description of a shape
-   //
+  // Get a friendly description of a shape
   getShapeDescription(shape) {
     const color = shape.fill || 'default';
     const type = shape.type || 'shape';
     return `${color} ${type}`;
   }
 
-  //
-   // Execute a function call from the AI
-   //
+  // Execute a function call from the AI
   async executeFunctionCall(functionCall) {
     const { name, arguments: args } = functionCall;
     const parsedArgs = JSON.parse(args);
@@ -1778,9 +1769,7 @@ Alternative: Deploy to Vercel/Netlify to test AI features in production.`;
     }
   }
 
-  //
-   // Get human-readable description of a shape
-   //
+  // Get human-readable description of a shape
   getShapeDescription(shape) {
     const colorName = this.getColorName(shape.fill);
     const colorPrefix = colorName ? `${colorName} ` : '';
@@ -1811,9 +1800,7 @@ Alternative: Deploy to Vercel/Netlify to test AI features in production.`;
     }
   }
 
-  //
-   // Get color name from hex value
-   //
+  // Get color name from hex value
   getColorName(hexColor) {
     if (!hexColor) return '';
     
@@ -1836,16 +1823,12 @@ Alternative: Deploy to Vercel/Netlify to test AI features in production.`;
     return colorNames[color] || '';
   }
 
-  //
-   // Clear conversation history
-   //
+  // Clear conversation history
   clearHistory() {
     this.conversationHistory = [];
   }
 
-  //
-   // Get conversation history
-   //
+  // Get conversation history
   getHistory() {
     return [...this.conversationHistory];
   }
