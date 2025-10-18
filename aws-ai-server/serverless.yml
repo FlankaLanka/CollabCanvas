@@ -14,10 +14,13 @@ provider:
   httpApi:
     cors:
       allowedOrigins:
-        - ${env:ALLOWED_ORIGINS, 'https://collab-canvas-virid.vercel.app,http://localhost:5173,http://localhost:3000'}
+        - https://collab-canvas-virid.vercel.app
+        - http://localhost:5173
+        - http://localhost:3000
       allowedHeaders:
         - Content-Type
         - Authorization
+        - X-Requested-With
       allowedMethods:
         - GET
         - POST

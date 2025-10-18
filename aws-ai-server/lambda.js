@@ -6,7 +6,7 @@
  */
 
 import serverlessExpress from '@codegenie/serverless-express';
-import app from './server.js';
+import { app } from './server.js';
 
 // Create the Lambda handler
 const handler = serverlessExpress({ app });
