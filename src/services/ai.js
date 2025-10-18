@@ -941,15 +941,42 @@ export class AICanvasService {
         
         console.log('🔍 Server response:', {
           content: aiResponse,
+          hasToolCalls: !!(responseMessage.tool_calls),
           hasFunctionCalls: !!(responseMessage.function_calls),
-          functionCallsCount: responseMessage.function_calls?.length || 0
+          hasFunctionCall: !!(responseMessage.function_call),
+          hasToolCall: !!(responseMessage.tool_call),
+          toolCallsCount: responseMessage.tool_calls?.length || 0,
+          functionCallsCount: responseMessage.function_calls?.length || 0,
+          totalCalls: (responseMessage.tool_calls?.length || responseMessage.function_calls?.length || 0) + (responseMessage.tool_call ? 1 : 0) + (responseMessage.function_call ? 1 : 0)
         });
         
         // Execute function calls if any
         const functionCalls = [];
         const results = [];
         
-        if (responseMessage.function_calls && Array.isArray(responseMessage.function_calls)) {
+        // Handle new tool_calls format (OpenAI 2024+)
+        if (responseMessage.tool_calls && Array.isArray(responseMessage.tool_calls)) {
+          console.log('🔧 Executing multiple tool calls:', responseMessage.tool_calls.length);
+          for (const toolCall of responseMessage.tool_calls) {
+            try {
+              console.log('🔧 Executing tool call:', toolCall.function.name, 'with args:', toolCall.function.arguments);
+              const result = await this.executeFunctionCall({
+                name: toolCall.function.name,
+                arguments: toolCall.function.arguments
+              });
+              results.push(result);
+              functionCalls.push({
+                name: toolCall.function.name,
+                arguments: toolCall.function.arguments
+              });
+              console.log('✅ Tool call executed successfully:', toolCall.function.name, 'result:', result);
+            } catch (functionError) {
+              console.error('❌ Tool call execution error:', functionError);
+            }
+          }
+        }
+        // Handle old function_calls format (legacy)
+        else if (responseMessage.function_calls && Array.isArray(responseMessage.function_calls)) {
           console.log('🔧 Executing multiple function calls:', responseMessage.function_calls.length);
           for (const functionCall of responseMessage.function_calls) {
             try {
@@ -962,8 +989,26 @@ export class AICanvasService {
               console.error('❌ Composite function execution error:', functionError);
             }
           }
+        } else if (responseMessage.tool_call) {
+          // Handle single tool call (new format)
+          const toolCall = responseMessage.tool_call;
+          try {
+            console.log('🔧 Executing single tool call:', toolCall.function.name, 'with args:', toolCall.function.arguments);
+            const result = await this.executeFunctionCall({
+              name: toolCall.function.name,
+              arguments: toolCall.function.arguments
+            });
+            results.push(result);
+            functionCalls.push({
+              name: toolCall.function.name,
+              arguments: toolCall.function.arguments
+            });
+            console.log('✅ Tool call executed successfully:', toolCall.function.name, 'result:', result);
+          } catch (functionError) {
+            console.error('❌ Tool call execution error:', functionError);
+          }
         } else if (responseMessage.function_call) {
-          // Handle single function call
+          // Handle single function call (legacy format)
           const functionCall = responseMessage.function_call;
           try {
             console.log('🔧 Executing single function call:', functionCall.name, 'with args:', functionCall.arguments);
@@ -1087,8 +1132,30 @@ The server will handle command interpretation automatically. Just pass the user'
       const functionCalls = [];
       const results = [];
 
-      // Check for multiple function calls (composite operations) first
-      if (responseMessage.function_calls && Array.isArray(responseMessage.function_calls)) {
+      // Check for tool calls (new format) first
+      if (responseMessage.tool_calls && Array.isArray(responseMessage.tool_calls)) {
+        console.log('🔧 Executing multiple tool calls:', responseMessage.tool_calls.length);
+        for (const toolCall of responseMessage.tool_calls) {
+          try {
+            console.log('🔧 Executing tool call:', toolCall.function.name, 'with args:', toolCall.function.arguments);
+            const result = await this.executeFunctionCall({
+              name: toolCall.function.name,
+              arguments: toolCall.function.arguments
+            });
+            results.push(result);
+            functionCalls.push({
+              name: toolCall.function.name,
+              arguments: toolCall.function.arguments
+            });
+            console.log('✅ Tool call executed successfully:', toolCall.function.name, 'result:', result);
+          } catch (functionError) {
+            console.error('❌ Tool call execution error:', functionError);
+          }
+        }
+        aiResponse = responseMessage.content || `✅ Executed ${results.length} operations successfully.`;
+      }
+      // Check for multiple function calls (legacy format)
+      else if (responseMessage.function_calls && Array.isArray(responseMessage.function_calls)) {
         console.log('🔧 Executing multiple function calls:', responseMessage.function_calls.length);
         for (const functionCall of responseMessage.function_calls) {
           try {
@@ -1103,7 +1170,26 @@ The server will handle command interpretation automatically. Just pass the user'
         }
         aiResponse = responseMessage.content || `✅ Executed ${results.length} operations successfully.`;
       }
-      // Execute single function call if no multiple calls
+      // Execute single tool call (new format)
+      else if (responseMessage.tool_call) {
+        const toolCall = responseMessage.tool_call;
+        functionCalls.push({
+          name: toolCall.function.name,
+          arguments: toolCall.function.arguments
+        });
+
+        try {
+          const result = await this.executeFunctionCall({
+            name: toolCall.function.name,
+            arguments: toolCall.function.arguments
+          });
+          results.push(result);
+          console.log('✅ Tool call executed successfully:', toolCall.function.name);
+        } catch (functionError) {
+          console.error('❌ Tool call execution error:', functionError);
+        }
+      }
+      // Execute single function call (legacy format)
       else if (responseMessage.function_call) {
         const functionCall = responseMessage.function_call;
         functionCalls.push(functionCall);
@@ -1319,14 +1405,39 @@ Alternative: Deploy to Vercel/Netlify to test AI features in production.`;
 
       // DEBUG: Log what the AI decided to do
       console.log('🤖 AI Decision:', {
+        hasToolCall: !!responseMessage.tool_call,
         hasFunctionCall: !!responseMessage.function_call,
+        hasToolCalls: !!(responseMessage.tool_calls),
+        hasFunctionCalls: !!(responseMessage.function_calls),
+        toolCallName: responseMessage.tool_call?.function?.name,
         functionName: responseMessage.function_call?.name,
         hasContent: !!responseMessage.content,
         contentPreview: responseMessage.content?.substring(0, 50) + '...'
       });
 
-      // Execute function calls if any
-      if (responseMessage.function_call) {
+      // Execute tool calls (new format) first
+      if (responseMessage.tool_call) {
+        const toolCall = responseMessage.tool_call;
+        functionCalls.push({
+          name: toolCall.function.name,
+          arguments: toolCall.function.arguments
+        });
+        
+        console.log('🔧 AI decided to run tool:', toolCall.function.name, 'with params:', JSON.parse(toolCall.function.arguments));
+        
+        try {
+          const result = await this.executeFunctionCall({
+            name: toolCall.function.name,
+            arguments: toolCall.function.arguments
+          });
+          results.push(result);
+          console.log('✅ Tool call executed successfully:', toolCall.function.name);
+        } catch (functionError) {
+          console.error('❌ Tool call execution error:', functionError);
+        }
+      }
+      // Execute function calls (legacy format)
+      else if (responseMessage.function_call) {
         const functionCall = responseMessage.function_call;
         functionCalls.push(functionCall);
         

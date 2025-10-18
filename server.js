@@ -13,6 +13,8 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import langsmithService from './src/services/langsmith.js';
+import tracedAIService from './src/services/tracedAI.js';
 // Import AI_FUNCTIONS directly to avoid import.meta.env issues in Node.js
 const AI_FUNCTIONS = [
   // MULTIPLE SHAPE CREATION (PRIORITY FUNCTION)
@@ -364,6 +366,21 @@ import { CommandParser } from './command-parser.js';
 
 dotenv.config();
 
+// Initialize LangSmith tracing
+let tracedLLM = null;
+(async () => {
+  try {
+    tracedLLM = await langsmithService.initialize();
+    console.log('🔍 LangSmith tracing status:', langsmithService.getStatus());
+    
+    // Also initialize the traced AI service
+    await tracedAIService.initialize();
+    console.log('✅ Traced AI service initialized');
+  } catch (error) {
+    console.error('❌ Failed to initialize LangSmith:', error);
+  }
+})();
+
 // Add fetch for Node.js if not available
 if (!globalThis.fetch) {
   const { default: fetch } = await import('node-fetch');
@@ -645,12 +662,39 @@ Always use appropriate function calls for canvas operations.`
   }
 });
 
+// LangSmith traced AI endpoint
+app.post('/api/ai-chat-traced', async (req, res) => {
+  try {
+    const { messages, canvasState } = req.body;
+    const userMessage = messages[messages.length - 1]?.content || '';
+    
+    console.log('🔍 Processing with LangSmith tracing:', userMessage.substring(0, 50) + '...');
+    
+    // Use the traced AI service
+    const result = await tracedAIService.processCommand(userMessage, canvasState);
+    
+    console.log('📊 Traced AI response:', {
+      hasContent: !!result.choices[0].message.content,
+      hasFunctionCall: !!result.choices[0].message.function_call
+    });
+    
+    res.json(result);
+    
+  } catch (error) {
+    console.error('❌ Traced AI error:', error);
+    res.status(500).json({ 
+      error: 'Traced AI processing failed: ' + error.message 
+    });
+  }
+});
+
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.json({ 
     status: 'ok', 
     message: 'AI API server running',
-    hasApiKey: !!(process.env.OPENAI_API_KEY || process.env.VITE_OPENAI_API_KEY)
+    hasApiKey: !!(process.env.OPENAI_API_KEY || process.env.VITE_OPENAI_API_KEY),
+    langsmithEnabled: langsmithService.isTracingEnabled()
   });
 });
 
@@ -658,7 +702,10 @@ app.get('/health', (req, res) => {
 app.listen(PORT, () => {
   console.log(`🤖 AI API server running on http://localhost:${PORT}`);
   console.log(`🔑 OpenAI API key: ${(process.env.OPENAI_API_KEY || process.env.VITE_OPENAI_API_KEY) ? 'Configured' : 'Missing'}`);
-  console.log(`📡 Endpoint: http://localhost:${PORT}/api/ai-chat`);
+  console.log(`📡 Endpoints:`);
+  console.log(`   - http://localhost:${PORT}/api/ai-chat (original)`);
+  console.log(`   - http://localhost:${PORT}/api/ai-chat-traced (with LangSmith tracing)`);
+  console.log(`🔍 LangSmith tracing: ${langsmithService.isTracingEnabled() ? 'Enabled' : 'Disabled'}`);
   
   if (!process.env.OPENAI_API_KEY) {
     console.log('\n⚠️  Warning: OPENAI_API_KEY environment variable not set');
