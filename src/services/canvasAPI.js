@@ -13,6 +13,14 @@ export class CanvasAPI {
     this.recentlyCreated = [];
     this.maxRecentShapes = 10; // Keep track of last 10 operations
     
+    // DEBUG: Log CanvasAPI initialization
+    console.log('🎨 CanvasAPI initialized:', {
+      hasCanvas: !!this.canvas,
+      hasStore: !!this.canvas?.store,
+      hasShapes: !!this.canvas?.shapes,
+      canvasKeys: Object.keys(this.canvas || {}),
+      environment: typeof window !== 'undefined' ? 'browser' : 'server'
+    });
   }
 
   /**
@@ -909,6 +917,16 @@ export class CanvasAPI {
     strokeWidth,
     zIndex
   }) {
+    // DEBUG: Log createShape call
+    console.log('🎨 CanvasAPI.createShape called:', {
+      shapeType,
+      x, y, width, height,
+      fill, text,
+      hasCanvas: !!this.canvas,
+      hasStore: !!this.canvas?.store,
+      environment: typeof window !== 'undefined' ? 'browser' : 'server'
+    });
+    
     const defaults = DEFAULT_SHAPE_PROPS[shapeType];
     if (!defaults) {
       throw new Error(`Invalid shape type: ${shapeType}`);

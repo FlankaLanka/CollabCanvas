@@ -893,6 +893,19 @@ export class AICanvasService {
     
     // Frontend uses HTTP requests to backend, not direct LangChain
     console.log('🤖 AICanvasService initialized (frontend mode)');
+    
+    // DEBUG: Log available canvasAPI methods
+    console.log('🔧 Available canvasAPI tools:', Object.keys(canvasAPI));
+    console.log('🔧 canvasAPI.createShape exists:', typeof canvasAPI.createShape === 'function');
+    console.log('🔧 canvasAPI.createMultipleShapes exists:', typeof canvasAPI.createMultipleShapes === 'function');
+    console.log('🔧 canvasAPI.arrangeInGrid exists:', typeof canvasAPI.arrangeInGrid === 'function');
+    
+    // DEBUG: Environment detection
+    console.log('🌍 Environment:', {
+      isDevelopment: isDevelopment,
+      aiEndpoint: AI_API_ENDPOINT,
+      hasCanvasAPI: !!canvasAPI
+    });
   }
 
 
@@ -1170,6 +1183,11 @@ The server will handle command interpretation automatically. Just pass the user'
         shapesCount: currentCanvasState.totalShapes,
         shapes: currentCanvasState.shapes.slice(0, 3).map(s => `${s.type} at (${s.x}, ${s.y})`)
       });
+      
+      // DEBUG: Log system prompt and tool definitions
+      console.log('📝 AI_FUNCTIONS available:', AI_FUNCTIONS.length);
+      console.log('📝 createShape function exists:', AI_FUNCTIONS.find(f => f.name === 'createShape'));
+      console.log('📝 createMultipleShapes function exists:', AI_FUNCTIONS.find(f => f.name === 'createMultipleShapes'));
 
       // Prepare conversation with system context
       const messages = [
@@ -1242,16 +1260,26 @@ Be helpful and creative while following the user's intent precisely. Always resp
 
       // Always use API proxy for security and CORS compliance
       console.log(`📡 Using API proxy (${isDevelopment ? 'development' : 'production'})`);
+      
+      // DEBUG: Log the full request being sent
+      const requestBody = {
+        messages: messages,
+        functions: AI_FUNCTIONS,
+        function_call: 'auto'
+      };
+      console.log('📤 AI API Request:', {
+        endpoint: AI_API_ENDPOINT,
+        functionsCount: AI_FUNCTIONS.length,
+        hasCreateShape: AI_FUNCTIONS.some(f => f.name === 'createShape'),
+        userMessage: userMessage
+      });
+      
       const response = await fetch(AI_API_ENDPOINT, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          messages: messages,
-          functions: AI_FUNCTIONS,
-          function_call: 'auto'
-        })
+        body: JSON.stringify(requestBody)
       });
 
       if (!response.ok) {
@@ -1293,21 +1321,60 @@ Alternative: Deploy to Vercel/Netlify to test AI features in production.`;
       }
 
       const completion = await response.json();
+      
+      // DEBUG: Log the full AI response
+      console.log('📥 AI API Response:', {
+        hasChoices: !!completion.choices,
+        choicesLength: completion.choices?.length,
+        hasFunctionCall: !!completion.choices?.[0]?.message?.function_call,
+        hasContent: !!completion.choices?.[0]?.message?.content,
+        content: completion.choices?.[0]?.message?.content?.substring(0, 100) + '...'
+      });
 
       const responseMessage = completion.choices[0].message;
       let aiResponse = responseMessage.content || 'I\'ve executed your request.';
       const functionCalls = [];
       const results = [];
 
+      // DEBUG: Log what the AI decided to do
+      console.log('🤖 AI Decision:', {
+        hasFunctionCall: !!responseMessage.function_call,
+        functionName: responseMessage.function_call?.name,
+        hasContent: !!responseMessage.content,
+        contentPreview: responseMessage.content?.substring(0, 50) + '...'
+      });
+
       // Execute function calls if any
       if (responseMessage.function_call) {
         const functionCall = responseMessage.function_call;
         functionCalls.push(functionCall);
+        
+        console.log('🔧 AI decided to run:', functionCall.name, 'with params:', JSON.parse(functionCall.arguments));
 
         try {
           const result = await this.executeFunctionCall(functionCall);
           results.push(result);
           console.log('✅ Function executed successfully:', functionCall.name);
+          
+          // SAFE-GUARD: Verify shape creation for shape-related commands
+          if (['createShape', 'createMultipleShapes'].includes(functionCall.name)) {
+            const canvasStateAfter = this.canvasAPI.getCanvasState();
+            const shapesBefore = currentCanvasState.totalShapes;
+            const shapesAfter = canvasStateAfter.totalShapes;
+            
+            console.log('🛡️ Safe-guard check:', {
+              functionName: functionCall.name,
+              shapesBefore,
+              shapesAfter,
+              shapesCreated: shapesAfter - shapesBefore,
+              success: shapesAfter > shapesBefore
+            });
+            
+            if (shapesAfter <= shapesBefore) {
+              console.warn('⚠️ Safe-guard triggered: No shapes were created despite function call');
+              aiResponse = `I attempted to create a shape but it didn't appear on the canvas. This might be a technical issue. Please try again or contact support if the problem persists.`;
+            }
+          }
           
           // Enhance response with function result details for better user feedback
           // Always provide conversational responses instead of technical logs
@@ -1436,6 +1503,21 @@ Alternative: Deploy to Vercel/Netlify to test AI features in production.`;
             : `There was an issue executing the command: ${error.message}`;
           aiResponse += `\n\n${errorMsg}`;
         }
+      } else {
+        // No function call - AI provided a text response
+        console.log('💬 AI provided text response (no function call)');
+        
+        // SAFE-GUARD: Detect if user requested shape creation but got text response
+        const isShapeRequest = /create|add|make|draw|generate.*(shape|circle|rectangle|triangle|square)/i.test(userMessage);
+        if (isShapeRequest) {
+          console.warn('⚠️ Safe-guard triggered: User requested shape creation but AI generated text response');
+          console.warn('⚠️ This indicates the production AI endpoint is not properly configured for function calling');
+          console.warn('⚠️ Expected: Function call to createShape or createMultipleShapes');
+          console.warn('⚠️ Actual: Text response without function calls');
+          
+          // Override the AI response with a helpful error message
+          aiResponse = `I understand you want to create a shape, but I'm having trouble with the shape creation system in production. This appears to be a technical issue where the AI is generating text instead of calling the shape creation functions. Please try again, or if the problem persists, there may be a configuration issue with the production AI endpoint.`;
+        }
       }
 
       // Ensure we always have a meaningful, conversational response
@@ -1488,13 +1570,36 @@ Alternative: Deploy to Vercel/Netlify to test AI features in production.`;
     const parsedArgs = JSON.parse(args);
 
     console.log('🔧 Executing function:', name, 'with args:', parsedArgs);
+    
+    // DEBUG: Log canvas state before execution
+    const canvasStateBefore = this.canvasAPI.getCanvasState();
+    console.log('📊 Canvas state BEFORE execution:', {
+      shapesCount: canvasStateBefore.totalShapes,
+      shapes: canvasStateBefore.shapes.slice(0, 3).map(s => `${s.type} at (${s.x}, ${s.y})`)
+    });
 
     switch (name) {
       case 'createShape':
         console.log('🔧 Calling canvasAPI.createShape with:', parsedArgs);
-        const result = await this.canvasAPI.createShape(parsedArgs);
-        console.log('🔧 createShape result:', result);
-        return result;
+        console.log('🔧 canvasAPI.createShape type:', typeof this.canvasAPI.createShape);
+        
+        try {
+          const result = await this.canvasAPI.createShape(parsedArgs);
+          console.log('🔧 createShape result:', result);
+          
+          // DEBUG: Verify shape was actually created
+          const canvasStateAfter = this.canvasAPI.getCanvasState();
+          console.log('📊 Canvas state AFTER createShape:', {
+            shapesCount: canvasStateAfter.totalShapes,
+            newShapes: canvasStateAfter.shapes.slice(canvasStateBefore.totalShapes),
+            shapeCreated: canvasStateAfter.totalShapes > canvasStateBefore.totalShapes
+          });
+          
+          return result;
+        } catch (error) {
+          console.error('❌ createShape failed:', error);
+          throw error;
+        }
         
       case 'moveShape':
         // Handle center positioning

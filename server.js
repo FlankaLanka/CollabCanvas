@@ -404,6 +404,18 @@ app.post('/api/ai-chat', async (req, res) => {
     }
 
     console.log('🤖 Processing AI request with', messages.length, 'messages');
+    
+    // DEBUG: Log request details
+    console.log('🔍 AI Request Debug:', {
+      hasMessages: !!messages,
+      messagesCount: messages?.length,
+      hasFunctions: !!functions,
+      functionsCount: functions?.length,
+      hasFunctionCall: !!function_call,
+      functionCallType: function_call,
+      hasCanvasState: !!canvasState,
+      userMessage: messages?.[messages.length - 1]?.content?.substring(0, 50) + '...'
+    });
 
     // Get the last user message
     const userMessage = messages[messages.length - 1]?.content;
@@ -477,15 +489,10 @@ app.post('/api/ai-chat', async (req, res) => {
       });
     }
 
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openaiApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: [
+    // DEBUG: Log OpenAI API request
+    const openaiRequestBody = {
+      model: 'gpt-4o-mini',
+      messages: [
           {
             role: 'system',
             content: `You are an AI canvas assistant. Current canvas state: ${JSON.stringify(canvasState || {})}. 
@@ -564,16 +571,47 @@ Always use appropriate function calls for canvas operations.`
         functions: AI_FUNCTIONS,
         function_call: 'auto',
         temperature: 0.2
-      })
+      };
+      
+      console.log('📤 OpenAI API Request Debug:', {
+        hasFunctions: !!openaiRequestBody.functions,
+        functionsCount: openaiRequestBody.functions?.length,
+        hasCreateShape: openaiRequestBody.functions?.some(f => f.name === 'createShape'),
+        functionCallType: openaiRequestBody.function_call,
+        userMessage: userMessage.substring(0, 50) + '...'
+      });
+
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${openaiApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(openaiRequestBody)
     });
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
+      console.error('❌ OpenAI API Error:', {
+        status: response.status,
+        statusText: response.statusText,
+        error: errorData
+      });
       throw new Error(`OpenAI API error: ${response.status} - ${errorData.error?.message || response.statusText}`);
     }
 
     const data = await response.json();
     const aiMessage = data.choices[0].message;
+    
+    // DEBUG: Log OpenAI API response
+    console.log('📥 OpenAI API Response Debug:', {
+      hasChoices: !!data.choices,
+      choicesLength: data.choices?.length,
+      hasFunctionCall: !!aiMessage.function_call,
+      functionName: aiMessage.function_call?.name,
+      hasContent: !!aiMessage.content,
+      contentPreview: aiMessage.content?.substring(0, 50) + '...'
+    });
 
     return res.json({
       id: 'chatcmpl-' + Math.random().toString(36).substr(2, 9),
