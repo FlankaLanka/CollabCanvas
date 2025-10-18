@@ -6,7 +6,8 @@ import {
   arrayUnion,
   arrayRemove,
   serverTimestamp,
-  getDoc
+  getDoc,
+  writeBatch
 } from 'firebase/firestore';
 import { db, hasFirebaseConfig } from './firebase';
 import { getCurrentUser } from './auth';
@@ -284,6 +285,72 @@ export async function unlockShape(canvasId = GLOBAL_CANVAS_ID, shapeId) {
     console.log('🔓 Shape unlocked:', shapeId);
   } catch (error) {
     console.error('❌ Error unlocking shape:', error);
+    throw error;
+  }
+}
+
+/**
+ * Batch update multiple shapes atomically
+ * @param {string} canvasId - Canvas document ID
+ * @param {Array} updates - Array of shape updates [{id, x, y, lastModified, lastModifiedBy}, ...]
+ */
+export async function batchUpdateShapes(canvasId = GLOBAL_CANVAS_ID, updates) {
+  if (!hasFirebaseConfig || !db) {
+    console.log('🎨 Development mode: Skipping batch shape updates in Firestore');
+    return;
+  }
+
+  if (!updates || updates.length === 0) {
+    console.warn('⚠️ No updates provided for batch update');
+    return;
+  }
+
+  try {
+    const currentUser = getCurrentUser();
+    const canvasRef = doc(db, CANVAS_COLLECTION, canvasId);
+    
+    // Get current document to find and update the specific shapes
+    const docSnap = await getDoc(canvasRef);
+    if (!docSnap.exists()) {
+      throw new Error(`Canvas ${canvasId} does not exist`);
+    }
+    
+    const data = docSnap.data();
+    const shapes = data.shapes || [];
+    
+    // Create a map of updates for quick lookup
+    const updatesMap = new Map();
+    updates.forEach(update => {
+      updatesMap.set(update.id, update);
+    });
+    
+    // Find and update the specific shapes
+    const updatedShapes = shapes.map(shape => {
+      const update = updatesMap.get(shape.id);
+      if (update) {
+        return {
+          ...shape,
+          x: update.x,
+          y: update.y,
+          lastModifiedBy: update.lastModifiedBy || currentUser?.uid || 'anonymous',
+          lastModifiedAt: update.lastModified || new Date()
+        };
+      }
+      return shape;
+    });
+    
+    // Use batch write for atomic update
+    const batch = writeBatch(db);
+    batch.update(canvasRef, {
+      shapes: updatedShapes,
+      lastUpdated: serverTimestamp()
+    });
+    
+    await batch.commit();
+    
+    console.log('✅ Batch shape updates completed atomically:', updates.length, 'shapes');
+  } catch (error) {
+    console.error('❌ Error batch updating shapes:', error);
     throw error;
   }
 }

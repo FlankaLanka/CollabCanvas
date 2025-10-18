@@ -8,6 +8,7 @@ const GLOBAL_CANVAS_ID = 'main';
 // High-frequency position updates (60fps)
 const POSITION_UPDATE_THROTTLE = 16; // 16ms = 60fps
 let lastPositionUpdate = 0;
+const shapeThrottleMap = new Map(); // Per-shape throttling
 
 /**
  * Update shape position in Realtime Database for ultra-low latency
@@ -28,7 +29,7 @@ export async function updateShapePositionRealtime(shapeId, position) {
   try {
     const positionRef = ref(rtdb, `${REALTIME_SHAPES_PATH}/${GLOBAL_CANVAS_ID}/${shapeId}/position`);
     
-    // Simplified data structure for better performance
+    // Enhanced data structure with timestamp for page refresh recovery
     const positionData = {
       x: Math.round(position.x * 100) / 100, // Round to 2 decimal places
       y: Math.round(position.y * 100) / 100,
@@ -49,12 +50,14 @@ export async function updateShapePositionRealtime(shapeId, position) {
 }
 
 /**
- * Throttled position update for 60fps performance
+ * Throttled position update for 60fps performance (per-shape throttling)
  */
 export function throttledUpdateShapePosition(shapeId, position) {
   const now = Date.now();
-  if (now - lastPositionUpdate >= POSITION_UPDATE_THROTTLE) {
-    lastPositionUpdate = now;
+  const lastUpdate = shapeThrottleMap.get(shapeId) || 0;
+  
+  if (now - lastUpdate >= POSITION_UPDATE_THROTTLE) {
+    shapeThrottleMap.set(shapeId, now);
     updateShapePositionRealtime(shapeId, position);
   }
 }
@@ -64,7 +67,7 @@ export function throttledUpdateShapePosition(shapeId, position) {
  */
 export function forceUpdateShapePosition(shapeId, position) {
   updateShapePositionRealtime(shapeId, position);
-  lastPositionUpdate = Date.now();
+  shapeThrottleMap.set(shapeId, Date.now());
 }
 
 /**
@@ -96,17 +99,19 @@ export function subscribeToRealtimePositions(callback) {
     if (positionsData) {
       const positionUpdates = {};
       
-      Object.entries(positionsData).forEach(([shapeId, shapeData]) => {
-        if (shapeData.position) {
-          // Don't apply updates from current user (avoid feedback loop)
-          if (shapeData.position.updatedBy !== currentUser?.uid) {
-            positionUpdates[shapeId] = {
-              x: shapeData.position.x,
-              y: shapeData.position.y
-            };
-          }
-        }
-      });
+       Object.entries(positionsData).forEach(([shapeId, shapeData]) => {
+         if (shapeData.position) {
+           // Don't apply updates from current user (avoid feedback loop)
+           if (shapeData.position.updatedBy !== currentUser?.uid) {
+             positionUpdates[shapeId] = {
+               x: shapeData.position.x,
+               y: shapeData.position.y,
+               updatedBy: shapeData.position.updatedBy,
+               timestamp: shapeData.position.timestamp
+             };
+           }
+         }
+       });
       
       if (Object.keys(positionUpdates).length > 0) {
         // Only log in development for performance

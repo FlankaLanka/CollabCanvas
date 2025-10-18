@@ -4,6 +4,7 @@ import {
   createShape as createShapeInFirestore,
   updateShape as updateShapeInFirestore,
   deleteShape as deleteShapeInFirestore,
+  batchUpdateShapes,
   lockShape,
   unlockShape,
   getCanvasState,
@@ -214,6 +215,46 @@ export function useCanvasSync(canvasId = GLOBAL_CANVAS_ID) {
     };
   }, [shapes.length, syncStatus]);
 
+  // Batch update multiple shapes atomically
+  const updateShapesBatch = useCallback(async (updates) => {
+    const operationId = `batch-update-${Date.now()}`;
+    
+    try {
+      pendingOperations.current.add(operationId);
+      
+      // Optimistically update shapes locally
+      setShapes(prevShapes => 
+        prevShapes.map(shape => {
+          const update = updates.find(u => u.id === shape.id);
+          if (update) {
+            return { 
+              ...shape, 
+              x: update.x,
+              y: update.y,
+              lastModifiedBy: update.lastModifiedBy || getCurrentUser()?.uid || 'anonymous',
+              lastModifiedAt: update.lastModified || new Date()
+            };
+          }
+          return shape;
+        })
+      );
+      
+      // Sync to Firestore using batch update
+      await batchUpdateShapes(canvasId, updates);
+      
+      console.log('✅ Batch shape updates completed atomically:', updates.length, 'shapes');
+      
+    } catch (error) {
+      console.error('❌ Error batch updating shapes:', error);
+      
+      // Revert optimistic updates on error
+      // In a production app, you might want to reload from Firestore
+      throw error;
+    } finally {
+      pendingOperations.current.delete(operationId);
+    }
+  }, [canvasId]);
+
   // Force refresh from Firestore
   const refreshCanvas = useCallback(async () => {
     try {
@@ -238,6 +279,7 @@ export function useCanvasSync(canvasId = GLOBAL_CANVAS_ID) {
     createShape,
     updateShape,
     deleteShape,
+    updateShapesBatch,
     
     // Collaboration features
     lockShapeForEditing,

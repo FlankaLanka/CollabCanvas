@@ -130,7 +130,7 @@ function AIChat({ onClose }) {
     <div className="flex flex-col">
       {/* Chat Interface */}
       {isExpanded && (
-        <div className="bg-white border-t border-gray-200 flex flex-col max-h-96">
+        <div className="bg-white border-t border-gray-200 flex flex-col h-full">
           {/* Header */}
           <div className="flex items-center justify-between p-3 border-b border-gray-200">
             <div className="flex items-center">
@@ -167,7 +167,7 @@ function AIChat({ onClose }) {
           </div>
 
           {/* Messages */}
-          <div className="flex-1 p-3 overflow-y-auto" ref={messagesEndRef}>
+          <div className="flex-1 p-3 overflow-y-auto min-h-0" ref={messagesEndRef}>
             {conversation.length === 0 && (
               <div className="text-center text-gray-500 py-8">
                 <svg className="w-8 h-8 mx-auto mb-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -236,7 +236,7 @@ function AIChat({ onClose }) {
           </div>
 
           {/* Input Section */}
-          <div className="border-t border-gray-200 p-3">
+          <div className="border-t border-gray-200 p-3 flex-shrink-0">
             <form onSubmit={handleSubmit} className="space-y-2">
               {/* Input field */}
               <div className="flex space-x-1">

@@ -78,7 +78,8 @@ export function CanvasProvider({ children }) {
     loading: firebaseSyncLoading,
     createShape: createSyncedShape,
     updateShape: updateSyncedShape,
-    deleteShape: deleteSyncedShape
+    deleteShape: deleteSyncedShape,
+    updateShapesBatch
   } = useCanvasSync();
 
   const stageRef = useRef(null);
@@ -86,6 +87,8 @@ export function CanvasProvider({ children }) {
   // ===== SYNC SHAPES FROM FIREBASE TO STORE =====
   useEffect(() => {
     if (syncedShapes && syncedShapes.length >= 0) {
+      console.log('🔄 Syncing shapes from Firestore:', syncedShapes.length, 'shapes');
+      
       // Update store directly (simple approach)
       store.shapes.clear();
       syncedShapes.forEach(shape => {
@@ -104,6 +107,32 @@ export function CanvasProvider({ children }) {
             `(${originalPosition.x}, ${originalPosition.y}) → (${shape.x}, ${shape.y})`);
         }
       });
+      
+      // INCOMPLETE DRAG RECOVERY: Check for shapes that might be in an incomplete drag state
+      // This handles cases where a user refreshed during a drag and the final positions weren't synced
+      const currentUser = getCurrentUser();
+      const now = Date.now();
+      let recoveredShapes = 0;
+      
+      syncedShapes.forEach(shape => {
+        // Check if this shape has recent real-time position data that's newer than Firestore
+        const realtimeData = pendingUpdatesRef.current.get(shape.id);
+        if (realtimeData && realtimeData.timestamp) {
+          const timeDiff = now - realtimeData.timestamp;
+          // If real-time data is recent (within 30 seconds) and from another user, apply it
+          if (timeDiff < 30000 && realtimeData.updatedBy !== currentUser?.uid) {
+            console.log(`🔄 INCOMPLETE DRAG RECOVERY: Applying real-time position for shape ${shape.id.substring(0, 20)}...`);
+            shape.x = realtimeData.x;
+            shape.y = realtimeData.y;
+            recoveredShapes++;
+          }
+        }
+      });
+      
+      if (recoveredShapes > 0) {
+        console.log(`🔄 Recovered ${recoveredShapes} shapes from incomplete drag operations`);
+      }
+      
       triggerUpdate(); // Force React re-render when shapes sync from database
     }
   }, [syncedShapes, store, triggerUpdate]);
@@ -119,6 +148,9 @@ export function CanvasProvider({ children }) {
 
   const handleRealtimePositionUpdate = useCallback((positionUpdates) => {
     let updatedAny = false;
+    const currentUser = getCurrentUser();
+    
+    console.log('📡 Received real-time position updates:', Object.keys(positionUpdates).length, 'shapes');
     
     // positionUpdates is an object, not a Map, so we iterate over its keys
     Object.entries(positionUpdates).forEach(([id, pos]) => {
@@ -128,13 +160,31 @@ export function CanvasProvider({ children }) {
         // Clear any pending updates for this shape since we now have it
         pendingUpdatesRef.current.delete(id);
         
-        // Only block real-time updates if WE are currently dragging this shape locally
-        // Allow updates from other users even if the shape is selected
-        if (!store.isDragging) {
+        // ENHANCED ANTI-JITTER: Check user ownership to allow updates from other users
+        const isLocallyDragged = store.locallyDraggedShapes && store.locallyDraggedShapes.has(id);
+        const isFromCurrentUser = pos.updatedBy === currentUser?.uid;
+        
+        // PAGE REFRESH RECOVERY: Always apply position updates after page refresh
+        // to ensure the refreshed user gets the latest positions from ongoing drags
+        const isRecentUpdate = pos.timestamp && (Date.now() - pos.timestamp) < 10000; // Within 10 seconds
+        const isPageRefresh = !isFromCurrentUser && isRecentUpdate;
+        
+        // Only block if WE are dragging it locally AND the update is from us (prevent echo)
+        // Allow updates from OTHER users even if we have the shape selected
+        // Allow recent updates during page refresh recovery
+        if (!isLocallyDragged || !isFromCurrentUser || isPageRefresh) {
+          const oldPosition = { x: shape.x, y: shape.y };
           shape.x = pos.x;
           shape.y = pos.y;
           updatedAny = true;
+          
+          if (isPageRefresh) {
+            console.log('🔄 PAGE REFRESH RECOVERY: Applied position update:', id, 'from', oldPosition, 'to', pos);
+          } else {
+            console.log('📡 Applied real-time update:', id, 'from user:', pos.updatedBy || 'unknown');
+          }
         } else {
+          console.log('🚫 BLOCKED real-time update (anti-jitter):', id, 'is being dragged locally by us');
         }
       } else {
         // Shape doesn't exist yet - this is normal in collaborative environments
@@ -161,6 +211,95 @@ export function CanvasProvider({ children }) {
   }, [store, triggerUpdate]);
 
   useRealtimePositions(handleRealtimePositionUpdate);
+
+  // ===== INCOMPLETE DRAG DETECTION ON PAGE LOAD =====
+  // Check for incomplete drags from previous sessions and sync them
+  useEffect(() => {
+    const checkForIncompleteDrags = async () => {
+      // This runs once on component mount to handle incomplete drags from previous sessions
+      console.log('🔍 Checking for incomplete drags from previous sessions...');
+      
+      // The real-time position updates will handle most cases,
+      // but we can also check if there are any shapes that need position sync
+      if (store.shapes.size > 0) {
+        const currentUser = getCurrentUser();
+        const now = Date.now();
+        let needsSync = false;
+        
+        // Check if any shapes have recent real-time data that needs to be synced to Firestore
+        store.shapes.forEach((shape, shapeId) => {
+          const realtimeData = pendingUpdatesRef.current.get(shapeId);
+          if (realtimeData && realtimeData.timestamp) {
+            const timeDiff = now - realtimeData.timestamp;
+            // If real-time data is recent (within 60 seconds) and from another user, sync it
+            if (timeDiff < 60000 && realtimeData.updatedBy !== currentUser?.uid) {
+              console.log(`🔄 Found incomplete drag for shape ${shapeId.substring(0, 20)}... - syncing to Firestore`);
+              needsSync = true;
+            }
+          }
+        });
+        
+        if (needsSync) {
+          // Trigger a sync to Firestore for any shapes that need it
+          const positionsToSync = [];
+          store.shapes.forEach((shape, shapeId) => {
+            positionsToSync.push({
+              id: shapeId,
+              x: shape.x,
+              y: shape.y,
+              lastModified: Date.now(),
+              lastModifiedBy: currentUser?.uid || 'anonymous'
+            });
+          });
+          
+          try {
+            await updateShapesBatch(positionsToSync);
+            console.log('✅ Synced incomplete drag positions to Firestore');
+          } catch (error) {
+            console.error('❌ Error syncing incomplete drag positions:', error);
+          }
+        }
+      }
+    };
+    
+    // Run the check after a short delay to allow real-time updates to arrive first
+    const timeoutId = setTimeout(checkForIncompleteDrags, 1000);
+    
+    return () => clearTimeout(timeoutId);
+  }, [store.shapes, updateShapesBatch]);
+
+
+  // ===== PERIODIC SYNC TO FIRESTORE =====
+  // Sync real-time positions to Firestore periodically to prevent desync
+  useEffect(() => {
+    const syncInterval = setInterval(async () => {
+      if (store.shapes.size > 0) {
+        const positionsToSync = [];
+        
+        // Collect all current positions
+        store.shapes.forEach((shape, shapeId) => {
+          positionsToSync.push({
+            id: shapeId,
+            x: shape.x,
+            y: shape.y,
+            lastModified: Date.now(),
+            lastModifiedBy: getCurrentUser()?.uid || 'anonymous'
+          });
+        });
+        
+        if (positionsToSync.length > 0) {
+          try {
+            await updateShapesBatch(positionsToSync);
+            console.log('🔄 Periodic sync: Updated', positionsToSync.length, 'shapes in Firestore');
+          } catch (error) {
+            console.error('❌ Error in periodic sync:', error);
+          }
+        }
+      }
+    }, 30000); // Sync every 30 seconds
+    
+    return () => clearInterval(syncInterval);
+  }, [store.shapes, updateShapesBatch]);
 
   // ===== ORPHANED UPDATE CLEANUP SYSTEM =====
   
@@ -314,7 +453,16 @@ export function CanvasProvider({ children }) {
       }
     });
     
-    console.log('🚀 Drag started for', store.selectedIds.size, 'shapes');
+    // ANTI-JITTER: Mark all selected shapes as being dragged locally
+    // This prevents remote updates from interfering with local drag
+    if (!store.locallyDraggedShapes) {
+      store.locallyDraggedShapes = new Set();
+    }
+    store.selectedIds.forEach(shapeId => {
+      store.locallyDraggedShapes.add(shapeId);
+    });
+    
+    console.log('🚀 Drag started for', store.selectedIds.size, 'shapes (anti-jitter enabled)');
     return true;
   }, [store]);
 
@@ -340,6 +488,7 @@ export function CanvasProvider({ children }) {
     console.log('🎯 Group drag update - delta:', { deltaX, deltaY }, 'for', store.selectedIds.size, 'shapes');
 
     // Update all selected shapes maintaining their relative positions
+    let shapesUpdated = 0;
     store.selectedIds.forEach(shapeId => {
       const shape = store.shapes.get(shapeId);
       const originalPos = dragStartPositions.current.get(shapeId);
@@ -356,17 +505,20 @@ export function CanvasProvider({ children }) {
         
         // Send real-time position to other users immediately (throttled internally)
         throttledUpdateShapePosition(shapeId, { x: newX, y: newY });
+        shapesUpdated++;
       } else {
         console.log('❌ Shape or original position not found:', shapeId);
       }
     });
+    
+    console.log('🚀 Multi-drag update: Updated', shapesUpdated, 'shapes with real-time sync');
 
     // Trigger React re-render for smooth visual dragging
     triggerUpdate();
   }, [store, triggerUpdate]);
 
   /**
-   * End drag - Sync final positions to database for persistence (simplified)
+   * End drag - Sync final positions to database for persistence (atomic batch update)
    */
   const endDrag = useCallback(async () => {
     if (!store.isDragging) return;
@@ -390,6 +542,15 @@ export function CanvasProvider({ children }) {
     // Clear drag start positions
     dragStartPositions.current.clear();
     
+    // ANTI-JITTER: Clear locally dragged shapes after a delay
+    // This allows the final positions to propagate before allowing remote updates
+    setTimeout(() => {
+      if (store.locallyDraggedShapes) {
+        store.locallyDraggedShapes.clear();
+        console.log('🔓 Cleared locally dragged shapes (anti-jitter)');
+      }
+    }, 500);
+    
     console.log('🏁 Drag ended with final positions:', finalPositions);
 
     // Sync all final positions to database AND real-time
@@ -400,23 +561,70 @@ export function CanvasProvider({ children }) {
           forceUpdateShapePosition(id, { x, y });
         });
 
-        // Sync to Firestore for persistence
-        const updatePromises = finalPositions.map(({ id, x, y }) => 
-          updateSyncedShape(id, {
-            x,
-            y,
-            lastModified: Date.now(),
-            lastModifiedBy: getCurrentUser()?.uid || 'anonymous'
-          })
-        );
+        // ATOMIC BATCH UPDATE: Sync to Firestore for persistence
+        const batchUpdates = finalPositions.map(({ id, x, y }) => ({
+          id,
+          x,
+          y,
+          lastModified: Date.now(),
+          lastModifiedBy: getCurrentUser()?.uid || 'anonymous'
+        }));
 
-        await Promise.all(updatePromises);
-        console.log('✅ Drag completed - synced', finalPositions.length, 'shapes to database and real-time');
+        await updateShapesBatch(batchUpdates);
+        console.log('✅ Drag completed - synced', finalPositions.length, 'shapes atomically to database and real-time');
       } catch (error) {
         console.error('❌ Error syncing drag to database:', error);
       }
     }
-  }, [store, updateSyncedShape]);
+  }, [store, updateShapesBatch]);
+
+  // ===== PAGE UNLOAD HANDLING =====
+  // Ensure drag operations complete before page unload/refresh
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (store.isDragging) {
+        console.log('🔄 Page unloading during drag - completing drag operation');
+        // Use synchronous approach for beforeunload since async might not complete
+        const finalPositions = [];
+        store.selectedIds.forEach(shapeId => {
+          const shape = store.shapes.get(shapeId);
+          if (shape) {
+            finalPositions.push({
+              id: shapeId,
+              x: Math.round(shape.x * 100) / 100,
+              y: Math.round(shape.y * 100) / 100
+            });
+          }
+        });
+        
+        if (finalPositions.length > 0) {
+          // Send final positions to real-time database immediately (synchronous)
+          finalPositions.forEach(({ id, x, y }) => {
+            forceUpdateShapePosition(id, { x, y });
+          });
+          console.log('🔄 Synced', finalPositions.length, 'shapes to real-time database before unload');
+        }
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.hidden && store.isDragging) {
+        console.log('🔄 Page hidden during drag - completing drag operation');
+        endDrag(); // This will sync all positions to database
+      }
+    };
+
+    // Handle page refresh/close
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    
+    // Handle tab switching (also triggers on mobile app switching)
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [store.isDragging, store.selectedIds, store.shapes, endDrag]);
 
   // ===== LAYER MANAGEMENT FUNCTIONS =====
   // (Defined early to be used by addShape and other functions)

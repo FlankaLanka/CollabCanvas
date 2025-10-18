@@ -162,7 +162,7 @@ function Inspector() {
     selectedId, 
     selectedIds, 
     shapes, 
-    updateShapeProperty, 
+    updateShape, 
     addBezierPoint,
     store 
   } = useCanvas();
@@ -220,37 +220,49 @@ function Inspector() {
   const handlePositionXChange = (value) => {
     const newValue = parseFloat(value) || 0;
     setLocalProperties(prev => ({ ...prev, positionX: newValue }));
-    updateShapeProperty('x', newValue);
+    if (selectedShape) {
+      updateShape(selectedShape.id, { x: newValue });
+    }
   };
 
   const handlePositionYChange = (value) => {
     const newValue = parseFloat(value) || 0;
     setLocalProperties(prev => ({ ...prev, positionY: newValue }));
-    updateShapeProperty('y', newValue);
+    if (selectedShape) {
+      updateShape(selectedShape.id, { y: newValue });
+    }
   };
 
   const handlePositionZChange = (value) => {
     const newValue = parseInt(value) || 0;
     setLocalProperties(prev => ({ ...prev, zIndex: newValue }));
-    updateShapeProperty('zIndex', newValue);
+    if (selectedShape) {
+      updateShape(selectedShape.id, { zIndex: newValue });
+    }
   };
 
   const handleRotationChange = (value) => {
     const newValue = parseFloat(value) || 0;
     setLocalProperties(prev => ({ ...prev, rotation: newValue }));
-    updateShapeProperty('rotation', newValue);
+    if (selectedShape) {
+      updateShape(selectedShape.id, { rotation: newValue });
+    }
   };
 
   const handleScaleXChange = (value) => {
     const newValue = parseFloat(value) || 100;
     setLocalProperties(prev => ({ ...prev, scaleX: newValue }));
-    updateShapeProperty('scaleX', newValue);
+    if (selectedShape) {
+      updateShape(selectedShape.id, { scaleX: newValue });
+    }
   };
 
   const handleScaleYChange = (value) => {
     const newValue = parseFloat(value) || 100;
     setLocalProperties(prev => ({ ...prev, scaleY: newValue }));
-    updateShapeProperty('scaleY', newValue);
+    if (selectedShape) {
+      updateShape(selectedShape.id, { scaleY: newValue });
+    }
   };
 
   // Handle color changes with immediate local update and debounced database sync
@@ -285,30 +297,38 @@ function Inspector() {
         newColor: color
       });
       
-      updateShapeProperty(colorProperty, color);
+      updateShape(selectedShape.id, { [colorProperty]: color });
     }, 150);
     
-  }, [updateShapeProperty, selectedShape, store]);
+  }, [updateShape, selectedShape, store]);
 
   const handleTextChange = (value) => {
     setLocalProperties(prev => ({ ...prev, text: value }));
-    updateShapeProperty('text', value);
+    if (selectedShape) {
+      updateShape(selectedShape.id, { text: value });
+    }
   };
 
   const handleFontSizeChange = (value) => {
     const newValue = parseInt(value) || 20;
     setLocalProperties(prev => ({ ...prev, fontSize: newValue }));
-    updateShapeProperty('fontSize', newValue);
+    if (selectedShape) {
+      updateShape(selectedShape.id, { fontSize: newValue });
+    }
   };
 
   const handleFontFamilyChange = (value) => {
     setLocalProperties(prev => ({ ...prev, fontFamily: value }));
-    updateShapeProperty('fontFamily', value);
+    if (selectedShape) {
+      updateShape(selectedShape.id, { fontFamily: value });
+    }
   };
 
   const handleTextAlignChange = (alignment) => {
     setLocalProperties(prev => ({ ...prev, align: alignment }));
-    updateShapeProperty('align', alignment);
+    if (selectedShape) {
+      updateShape(selectedShape.id, { align: alignment });
+    }
   };
 
   // If no shape is selected, show empty state
@@ -543,7 +563,11 @@ function Inspector() {
               <div className="flex items-center justify-between">
                 <span className="text-xs text-gray-600">Edit Points</span>
                 <button
-                  onClick={() => updateShapeProperty('showAnchorPoints', !selectedShape?.showAnchorPoints)}
+                  onClick={() => {
+                    if (selectedShape) {
+                      updateShape(selectedShape.id, { showAnchorPoints: !selectedShape.showAnchorPoints });
+                    }
+                  }}
                   className={`px-2 py-1 text-xs rounded transition-colors ${
                     selectedShape?.showAnchorPoints 
                       ? 'bg-green-600 text-white hover:bg-green-700' 
@@ -558,7 +582,11 @@ function Inspector() {
               <ScalarInput
                 label="Smoothing"
                 value={(selectedShape?.smoothing ?? 0.3) * 100}
-                onChange={(value) => updateShapeProperty('smoothing', value / 100)}
+                onChange={(value) => {
+                  if (selectedShape) {
+                    updateShape(selectedShape.id, { smoothing: value / 100 });
+                  }
+                }}
                 unit="%"
                 min={0}
                 max={100}
@@ -569,7 +597,11 @@ function Inspector() {
               <ScalarInput
                 label="Stroke Width"
                 value={selectedShape?.strokeWidth || 3}
-                onChange={(value) => updateShapeProperty('strokeWidth', value)}
+                onChange={(value) => {
+                  if (selectedShape) {
+                    updateShape(selectedShape.id, { strokeWidth: value });
+                  }
+                }}
                 unit="px"
                 min={1}
                 max={20}

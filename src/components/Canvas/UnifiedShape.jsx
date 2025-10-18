@@ -123,6 +123,18 @@ function generateMultiBezierPoints(anchorPoints, smoothing = 0.3, segments = 25)
 }
 
 /**
+ * Calculate triangle centroid for proper rotation center
+ * @param {Array} points - Array of triangle points [x1, y1, x2, y2, x3, y3]
+ * @returns {Object} Centroid coordinates {x, y}
+ */
+function getTriangleCentroid(points) {
+  if (!points || points.length < 6) return { x: 0, y: 0 };
+  const x = (points[0] + points[2] + points[4]) / 3;
+  const y = (points[1] + points[3] + points[5]) / 3;
+  return { x, y };
+}
+
+/**
  * Unified Shape Component - Works with all interaction models
  * - Click = Select (new model) or toggle multi-select (old model)
  * - Drag = Immediate drag on mouse move with database sync
@@ -213,24 +225,53 @@ function UnifiedShape({ shape, isSelected, updateCursor, snapToGrid = false }) {
     dragActive.current = false;
     hasMoved.current = false;
 
-    // Handle selection based on modifier keys
+    // Handle selection based on modifier keys and current selection state
     const isCtrlPressed = e.evt.ctrlKey || e.evt.metaKey; // Ctrl on Windows/Linux, Cmd on Mac
     const isShiftPressed = e.evt.shiftKey;
     
-    if (isCtrlPressed) {
-      // Ctrl+click: Toggle selection
-      toggleShapeSelection(shape.id);
-    } else if (isShiftPressed) {
-      // Shift+click: Add to selection (additive)
-      addToSelection(shape.id);
+    console.log('🖱️ Mouse down on shape:', {
+      shapeId: shape.id,
+      shapeType: shape.type,
+      isSelected,
+      isCtrlPressed,
+      isShiftPressed,
+      position: canvasPos
+    });
+    
+    // NEW LOGIC: Preserve multi-select when clicking already-selected shapes
+    if (isSelected) {
+      // Shape is already selected - preserve selection for dragging
+      if (isCtrlPressed) {
+        // Ctrl+click on selected shape: Remove from selection
+        console.log('🔄 Ctrl+click on selected shape - toggling selection');
+        toggleShapeSelection(shape.id);
+      } else if (isShiftPressed) {
+        // Shift+click on selected shape: Keep in selection (no change)
+        console.log('🔄 Shift+click on selected shape - keeping selection');
+        // This allows dragging the group while maintaining selection
+      } else {
+        console.log('🔄 Regular click on selected shape - preserving multi-select');
+      }
+      // Regular click on selected shape: Keep selection (preserve multi-select)
     } else {
-      // Regular click: Single select
-      selectShape(shape.id);
+      // Shape is NOT selected - apply normal selection logic
+      if (isCtrlPressed) {
+        // Ctrl+click: Add to selection (additive)
+        console.log('➕ Ctrl+click - adding to selection');
+        addToSelection(shape.id);
+      } else if (isShiftPressed) {
+        // Shift+click: Add to selection (additive)
+        console.log('➕ Shift+click - adding to selection');
+        addToSelection(shape.id);
+      } else {
+        // Regular click: Single select (clears other selections)
+        console.log('🎯 Regular click - single select');
+        selectShape(shape.id);
+      }
     }
     
-    console.log('🖱️ Mouse down on shape:', shape.id, 'at position:', canvasPos);
     console.log('🔧 Mouse state set - ready for drag');
-  }, [shape.id, selectShape, toggleShapeSelection, addToSelection, stageRef]);
+  }, [shape.id, selectShape, toggleShapeSelection, addToSelection, stageRef, isSelected, shape.type]);
 
   // Handle mouse move (start drag when threshold exceeded)
   const handleMouseMove = useCallback((e) => {
@@ -401,6 +442,11 @@ function UnifiedShape({ shape, isSelected, updateCursor, snapToGrid = false }) {
   // Common props for all shapes
   const rotationDegrees = shape.rotation || 0;
   
+  // Calculate triangle centroid for proper rotation center
+  const triangleCentroid = shape.type === SHAPE_TYPES.TRIANGLE 
+    ? getTriangleCentroid(shape.points || [0, -40, -35, 30, 35, 30])
+    : { x: 0, y: 0 };
+  
   // Debug rotation
   if (shape.rotation && shape.rotation !== 0) {
     console.log('🎯 Shape rotation:', {
@@ -409,6 +455,7 @@ function UnifiedShape({ shape, isSelected, updateCursor, snapToGrid = false }) {
       rotationDegrees: rotationDegrees,
       shouldBe45Deg: shape.rotation === 45,
       trianglePoints: shape.points,
+      triangleCentroid: triangleCentroid,
       expected90Deg: shape.rotation === 90 ? 'Should point RIGHT' : 'Not 90 degrees'
     });
   }
@@ -425,13 +472,13 @@ function UnifiedShape({ shape, isSelected, updateCursor, snapToGrid = false }) {
              shape.type === SHAPE_TYPES.CIRCLE ? 0 : // Circles are already center-positioned in Konva
              shape.type === SHAPE_TYPES.LINE ? 0 : // Lines use their points for positioning
              shape.type === SHAPE_TYPES.BEZIER_CURVE ? 0 : // Bezier curves are now centered around (0,0)
-             shape.type === SHAPE_TYPES.TRIANGLE ? 0 : // Triangle points are already centered around (0,0)
+             shape.type === SHAPE_TYPES.TRIANGLE ? triangleCentroid.x : // Triangle rotates around centroid
              shape.type === SHAPE_TYPES.TEXT || shape.type === SHAPE_TYPES.TEXT_INPUT ? (shape.width || 200) / 2 : 0,
     offsetY: shape.type === SHAPE_TYPES.RECTANGLE ? (shape.height || 100) / 2 : 
              shape.type === SHAPE_TYPES.CIRCLE ? 0 : // Circles are already center-positioned in Konva
              shape.type === SHAPE_TYPES.LINE ? 0 : // Lines use their points for positioning
              shape.type === SHAPE_TYPES.BEZIER_CURVE ? 0 : // Bezier curves are now centered around (0,0)
-             shape.type === SHAPE_TYPES.TRIANGLE ? 0 : // Triangle points are already centered around (0,0)
+             shape.type === SHAPE_TYPES.TRIANGLE ? triangleCentroid.y : // Triangle rotates around centroid
              shape.type === SHAPE_TYPES.TEXT_INPUT ? (shape.height || 40) / 2 : 0,
     
     ...getShapeStyles(),
