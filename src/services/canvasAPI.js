@@ -35,6 +35,30 @@ export class CanvasAPI {
   }
 
   /**
+   * Find a safe position for a shape to avoid collisions
+   */
+  findSafePosition(x, y, width, height) {
+    const canvasWidth = 800; // Default canvas width
+    const canvasHeight = 600; // Default canvas height
+    const margin = 20; // Margin from edges
+    
+    // Check if position is within canvas bounds
+    const withinBounds = x >= margin && y >= margin && 
+                        (x + width) <= (canvasWidth - margin) && 
+                        (y + height) <= (canvasHeight - margin);
+    
+    if (withinBounds) {
+      return { x, y, adjusted: false };
+    }
+    
+    // Adjust position to fit within bounds
+    let adjustedX = Math.max(margin, Math.min(x, canvasWidth - width - margin));
+    let adjustedY = Math.max(margin, Math.min(y, canvasHeight - height - margin));
+    
+    return { x: adjustedX, y: adjustedY, adjusted: true };
+  }
+
+  /**
    * Track recently created shapes for "these shapes" references
    */
   _trackRecentlyCreated(shapes) {
