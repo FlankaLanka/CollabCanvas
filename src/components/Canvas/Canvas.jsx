@@ -5,7 +5,6 @@ import UnifiedShape from './UnifiedShape';
 import ShapeTransformer from './ShapeTransformer';
 import CanvasControls from './CanvasControls';
 import CursorLayer from './CursorLayer';
-import PropertiesPanel from './PropertiesPanel';
 // InteractionGuide moved to Navbar
 import AIChat from '../AI/AIChat';
 import Grid from './Grid';
@@ -434,8 +433,6 @@ function Canvas({ showGrid: propShowGrid, snapToGrid: propSnapToGrid }) {
       {/* Interaction Guide moved to Navbar */}
 
 
-      {/* Properties Panel */}
-      <PropertiesPanel />
 
       {/* AI Chat moved to OnlineUsers component */}
 
