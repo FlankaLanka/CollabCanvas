@@ -188,7 +188,7 @@ function Inspector() {
         scaleX: selectedShape.scaleX || 100,
         scaleY: selectedShape.scaleY || 100,
         fill: selectedShape.fill || '#3B82F6',
-        stroke: selectedShape.stroke,
+        stroke: selectedShape.stroke || '#8B5CF6',
         strokeWidth: selectedShape.strokeWidth || 2,
         text: selectedShape.text || '',
         fontSize: selectedShape.fontSize || 20,
@@ -269,11 +269,11 @@ function Inspector() {
   const handleColorChange = useCallback((color) => {
     if (!selectedShape || !store) return;
     
-    // Update local properties immediately for smooth UI
-    setLocalProperties(prev => ({ ...prev, fill: color }));
-    
     // Determine the appropriate property based on shape type
     const colorProperty = (selectedShape.type === SHAPE_TYPES.BEZIER_CURVE || selectedShape.type === SHAPE_TYPES.LINE) ? 'stroke' : 'fill';
+    
+    // Update local properties immediately for smooth UI
+    setLocalProperties(prev => ({ ...prev, [colorProperty]: color }));
     
     // IMMEDIATE: Update the local shape object for instant visual feedback
     const localShape = store.shapes.get(selectedShape.id);
@@ -622,7 +622,11 @@ function Inspector() {
           </div>
           
           <ColorPicker
-            color={localProperties.fill || '#3B82F6'}
+            color={
+              selectedShape && (selectedShape.type === SHAPE_TYPES.BEZIER_CURVE || selectedShape.type === SHAPE_TYPES.LINE)
+                ? (localProperties.stroke || '#8B5CF6')
+                : (localProperties.fill || '#3B82F6')
+            }
             onChange={handleColorChange}
           />
         </div>
