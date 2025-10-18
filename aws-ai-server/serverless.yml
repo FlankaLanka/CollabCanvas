@@ -1,0 +1,54 @@
+service: aws-ai-agent
+
+frameworkVersion: '3'
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  stage: ${opt:stage, 'dev'}
+  region: ${opt:region, 'us-east-1'}
+  environment:
+    NODE_ENV: lambda
+    OPENAI_API_KEY: ${env:OPENAI_API_KEY}
+    ALLOWED_ORIGINS: ${env:ALLOWED_ORIGINS, 'https://collab-canvas-virid.vercel.app,http://localhost:5173,http://localhost:3000'}
+  httpApi:
+    cors:
+      allowedOrigins:
+        - ${env:ALLOWED_ORIGINS, 'https://collab-canvas-virid.vercel.app,http://localhost:5173,http://localhost:3000'}
+      allowedHeaders:
+        - Content-Type
+        - Authorization
+      allowedMethods:
+        - GET
+        - POST
+        - OPTIONS
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+          Resource: '*'
+
+functions:
+  api:
+    handler: lambda.handler
+    events:
+      - httpApi:
+          path: /{proxy+}
+          method: ANY
+      - httpApi:
+          path: /
+          method: ANY
+    timeout: 30
+    memorySize: 512
+
+plugins:
+  - serverless-offline
+
+custom:
+  serverless-offline:
+    httpPort: 3000
+    host: 0.0.0.0

@@ -21,7 +21,7 @@ const isDevelopment = import.meta.env.DEV;
 // API endpoint configuration
 const AI_API_ENDPOINT = isDevelopment 
   ? 'http://localhost:3001/api/ai-chat'  // Local Express server for development
-  : '/api/ai-chat-new';                   // New Vercel serverless function for production
+  : 'https://your-aws-api-gateway-url';  // AWS-hosted AI agent (replace with your actual URL)
 
 // Debug logging removed for production
 
