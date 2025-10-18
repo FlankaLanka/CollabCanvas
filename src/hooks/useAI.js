@@ -23,8 +23,14 @@ export function useAI() {
 
   // Initialize AI service when canvas context is available
   useEffect(() => {
+    console.log('🔍 useAI useEffect triggered:', { 
+      hasAIService: !!aiServiceRef.current, 
+      hasCanvasContext: !!canvasContext 
+    });
+    
     if (!aiServiceRef.current && canvasContext) {
       try {
+        console.log('🔧 Initializing AI service...');
         canvasAPIRef.current = new CanvasAPI(canvasContext);
         aiServiceRef.current = new AICanvasService(canvasAPIRef.current);
         console.log('🤖 AI service initialized successfully');
@@ -39,6 +45,9 @@ export function useAI() {
    * Check if AI is available (server-side configuration)
    */
   const isAIAvailable = useCallback(() => {
+    const hasService = !!aiServiceRef.current;
+    console.log('🔍 isAIAvailable check:', { hasService });
+    
     // AI service must be initialized
     if (!aiServiceRef.current) return false;
     
