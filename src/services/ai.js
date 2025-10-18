@@ -872,9 +872,7 @@ export const AI_FUNCTIONS = [
   }
 ];
 
-/**
- * AI Canvas Service - Handles natural language commands and executes canvas operations
- */
+// AI Canvas Service - Handles natural language commands and executes canvas operations
 export class AICanvasService {
   constructor(canvasAPI) {
     this.canvasAPI = canvasAPI;
@@ -899,9 +897,7 @@ export class AICanvasService {
   }
 
 
-  /**
-   * Process a natural language command
-   */
+  // Process a natural language command
   async processCommand(userMessage) {
     if (this.isProcessing) {
       throw new Error('AI is currently processing another command. Please wait.');
@@ -1032,9 +1028,9 @@ export class AICanvasService {
     }
   }
 
-  /**
-   * Process basic commands using OpenAI function calling
-   */
+  //
+   // Process basic commands using OpenAI function calling
+   //
   async _processBasicCommand(userMessage, startTime) {
     try {
       // Refresh canvas context to ensure we have the latest data
@@ -1158,9 +1154,9 @@ The server will handle command interpretation automatically. Just pass the user'
     }
   }
 
-  /**
-   * Process command using the original OpenAI function calling approach
-   */
+  //
+   // Process command using the original OpenAI function calling approach
+   //
   async _processWithFunctionCalling(userMessage, startTime) {
       // Refresh canvas context to ensure we have the latest data
       if (this.canvasAPI.refreshContext) {
@@ -1543,18 +1539,18 @@ Alternative: Deploy to Vercel/Netlify to test AI features in production.`;
       };
   }
 
-  /**
-   * Get a friendly description of a shape
-   */
+  //
+   // Get a friendly description of a shape
+   //
   getShapeDescription(shape) {
     const color = shape.fill || 'default';
     const type = shape.type || 'shape';
     return `${color} ${type}`;
   }
 
-  /**
-   * Execute a function call from the AI
-   */
+  //
+   // Execute a function call from the AI
+   //
   async executeFunctionCall(functionCall) {
     const { name, arguments: args } = functionCall;
     const parsedArgs = JSON.parse(args);
@@ -1782,9 +1778,9 @@ Alternative: Deploy to Vercel/Netlify to test AI features in production.`;
     }
   }
 
-  /**
-   * Get human-readable description of a shape
-   */
+  //
+   // Get human-readable description of a shape
+   //
   getShapeDescription(shape) {
     const colorName = this.getColorName(shape.fill);
     const colorPrefix = colorName ? `${colorName} ` : '';
@@ -1815,9 +1811,9 @@ Alternative: Deploy to Vercel/Netlify to test AI features in production.`;
     }
   }
 
-  /**
-   * Get color name from hex value
-   */
+  //
+   // Get color name from hex value
+   //
   getColorName(hexColor) {
     if (!hexColor) return '';
     
@@ -1840,16 +1836,16 @@ Alternative: Deploy to Vercel/Netlify to test AI features in production.`;
     return colorNames[color] || '';
   }
 
-  /**
-   * Clear conversation history
-   */
+  //
+   // Clear conversation history
+   //
   clearHistory() {
     this.conversationHistory = [];
   }
 
-  /**
-   * Get conversation history
-   */
+  //
+   // Get conversation history
+   //
   getHistory() {
     return [...this.conversationHistory];
   }
