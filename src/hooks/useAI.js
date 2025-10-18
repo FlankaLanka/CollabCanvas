@@ -48,11 +48,8 @@ export function useAI() {
     const hasService = !!aiServiceRef.current;
     console.log('🔍 isAIAvailable check:', { hasService });
     
-    // AI service must be initialized
-    if (!aiServiceRef.current) return false;
-    
-    // In development, AI requires backend server setup
-    // Show warning but allow service to be "available" so users see helpful error messages
+    // For now, always return true to allow AI functionality
+    // The service will handle errors gracefully
     return true;
   }, []);
 
