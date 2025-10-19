@@ -41,7 +41,8 @@ function Canvas({ showGrid: propShowGrid, snapToGrid: propSnapToGrid }) {
     bringToFront,
     sendToBack,
     moveForward,
-    moveBackward
+    moveBackward,
+    projectId
   } = useCanvas();
 
   // Presence tracking (users & cursors)
@@ -50,7 +51,7 @@ function Canvas({ showGrid: propShowGrid, snapToGrid: propSnapToGrid }) {
     updateCursor,
     updateCursorFromEvent,
     isActive: isPresenceActive
-  } = usePresence();
+  } = usePresence(projectId);
 
   // Use regular user cursors (now includes drag position updates)
   const allCursors = userCursors;

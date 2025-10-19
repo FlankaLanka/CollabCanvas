@@ -1234,6 +1234,7 @@ export function CanvasProvider({ children, projectId }) {
     syncLoading,
     isDragging,
     store, // Add store for direct access to shape objects
+    projectId, // Add projectId for presence tracking
     
     // Shape management
     addShape,

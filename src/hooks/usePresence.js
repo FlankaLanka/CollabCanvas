@@ -80,9 +80,9 @@ export function usePresence(projectId) {
   // Update cursor position (throttled)
   const updateCursor = useCallback((x, y, canvasX, canvasY) => {
     if (isActive) {
-      throttledUpdateUserCursor(x, y, canvasX, canvasY);
+      throttledUpdateUserCursor(projectId, x, y, canvasX, canvasY);
     }
-  }, [isActive]);
+  }, [isActive, projectId]);
 
   // Update cursor from mouse event with optimized coordinate handling
   const updateCursorFromEvent = useCallback((event, stage = null) => {
