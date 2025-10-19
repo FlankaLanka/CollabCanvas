@@ -5,6 +5,7 @@ import UnifiedShape from './UnifiedShape';
 import ShapeTransformer from './ShapeTransformer';
 import CanvasControls from './CanvasControls';
 import CursorLayer from './CursorLayer';
+import ErrorBoundary from './ErrorBoundary';
 // InteractionGuide moved to Navbar
 import AIChat from '../AI/AIChat';
 import Grid from './Grid';
@@ -362,67 +363,69 @@ function Canvas({ showGrid: propShowGrid, snapToGrid: propSnapToGrid }) {
                 'default' 
       }}
     >
-      <Stage
-        ref={stageRef}
-        width={containerSize.width}
-        height={containerSize.height}
-        scaleX={stageScale}
-        scaleY={stageScale}
-        x={stagePosition.x}
-        y={stagePosition.y}
-        draggable={false}
-        onClick={handleStageClick}
-        onWheel={handleWheel}
-        onMouseMove={handleMouseMove}
-        onMouseEnter={handleMouseMove}
-        onMouseDown={handleMouseDown}
-        onMouseUp={handleMouseUp}
-      >
-        {/* Background Layer - Coordinate Grid */}
-        <Layer>          
-          {showGrid && (
-            <Grid 
-              key={`grid-${stageScale}-${stagePosition.x}-${stagePosition.y}`} // Force re-render
-              stageWidth={containerSize.width}
-              stageHeight={containerSize.height}
-              stageScale={stageScale}
-              stagePosition={stagePosition}
-              snapToGrid={snapToGrid}
-            />
-          )}
-        </Layer>
+      <ErrorBoundary>
+        <Stage
+          ref={stageRef}
+          width={containerSize.width}
+          height={containerSize.height}
+          scaleX={stageScale}
+          scaleY={stageScale}
+          x={stagePosition.x}
+          y={stagePosition.y}
+          draggable={false}
+          onClick={handleStageClick}
+          onWheel={handleWheel}
+          onMouseMove={handleMouseMove}
+          onMouseEnter={handleMouseMove}
+          onMouseDown={handleMouseDown}
+          onMouseUp={handleMouseUp}
+        >
+          {/* Background Layer - Coordinate Grid */}
+          <Layer>          
+            {showGrid && (
+              <Grid 
+                key={`grid-${stageScale}-${stagePosition.x}-${stagePosition.y}`} // Force re-render
+                stageWidth={containerSize.width}
+                stageHeight={containerSize.height}
+                stageScale={stageScale}
+                stagePosition={stagePosition}
+                snapToGrid={snapToGrid}
+              />
+            )}
+          </Layer>
 
-         {/* Shapes Layer */}
-         <Layer>
-           {shapes
-             .sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0)) // Sort by z-index (lowest to highest)
-             .map((shape) => (
-               <UnifiedShape 
-                 key={shape.id} 
-                 shape={shape} 
-                 isSelected={selectedIds.includes(shape.id)}
-                 updateCursor={updateCursor}
-                 snapToGrid={snapToGrid}
-               />
-             ))}
-           
-          {/* Drawing Preview - Show current drawing path while drawing */}
-          {isDrawing && currentDrawingPath.length >= 4 && (
-            <Line
-              points={currentDrawingPath}
-              stroke="#8B5CF6"
-              strokeWidth={3}
-              closed={false}
-              globalCompositeOperation="source-over"
-              perfectDrawEnabled={false}
-              listening={false}
-            />
-          )}
+           {/* Shapes Layer */}
+           <Layer>
+             {shapes
+               .sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0)) // Sort by z-index (lowest to highest)
+               .map((shape) => (
+                 <UnifiedShape 
+                   key={shape.id} 
+                   shape={shape} 
+                   isSelected={selectedIds.includes(shape.id)}
+                   updateCursor={updateCursor}
+                   snapToGrid={snapToGrid}
+                 />
+               ))}
+             
+            {/* Drawing Preview - Show current drawing path while drawing */}
+            {isDrawing && currentDrawingPath.length >= 4 && (
+              <Line
+                points={currentDrawingPath}
+                stroke="#8B5CF6"
+                strokeWidth={3}
+                closed={false}
+                globalCompositeOperation="source-over"
+                perfectDrawEnabled={false}
+                listening={false}
+              />
+            )}
 
-          {/* Shape Transformer - Provides resize/rotation handles for selected shapes */}
-          <ShapeTransformer />
-        </Layer>
-      </Stage>
+            {/* Shape Transformer - Provides resize/rotation handles for selected shapes */}
+            <ShapeTransformer />
+          </Layer>
+        </Stage>
+      </ErrorBoundary>
 
       {/* Cursor Layer */}
       <CursorLayer cursors={allCursors} isVisible={isPresenceActive} />

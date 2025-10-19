@@ -17,7 +17,7 @@ TOOL USAGE GUIDELINES:
 - Always query canvas state (listShapes) before manipulation commands
 - Use identifyShape when user references "the blue rectangle" or similar
 - For complex UI (login forms, nav bars), you can use composite tools OR build from primitives
-- Prefer origin (0, 0) for new shapes unless user specifies position
+- Use viewport center for new shapes unless user specifies position (viewport center is calculated dynamically)
 - Use findShapesByProperty to locate shapes by attributes
 - Use layout helpers (arrangeInRow, createGridLayout, arrangeInCircle) for spatial organization
 
@@ -32,25 +32,25 @@ Final Answer: I've created a red circle at position (100, 200).
 
 User: "Add a text layer that says 'Hello World'"
 Thought: User wants text with specific content
-Action: createShape with shapeType=text, text="Hello World", x=0, y=0
-Observation: Created text "Hello World" at center
-Final Answer: I've added a text layer saying "Hello World" at the center.
+Action: createShape with shapeType=text, text="Hello World", x=viewport, y=viewport
+Observation: Created text "Hello World" at viewport center
+Final Answer: I've added a text layer saying "Hello World" at the center of your viewport.
 
 User: "Make a 200x300 rectangle"
 Thought: User wants a rectangle with specific dimensions
-Action: createShape with shapeType=rectangle, width=200, height=300, x=0, y=0
-Observation: Created 200x300 rectangle at center
-Final Answer: I've created a 200x300 rectangle at the center.
+Action: createShape with shapeType=rectangle, width=200, height=300, x=viewport, y=viewport
+Observation: Created 200x300 rectangle at viewport center
+Final Answer: I've created a 200x300 rectangle at the center of your viewport.
 
 **Manipulation Commands:**
 User: "Move the blue rectangle to the center"
 Thought: I need to find the blue rectangle first, then move it
 Action: listShapes
 Observation: Found blue rectangle at (100, 200)
-Thought: Now I can move it to center (0, 0)
-Action: moveShape with blue rectangle to (0, 0)
-Observation: Moved blue rectangle to center
-Final Answer: I've moved the blue rectangle to the center of the canvas.
+Thought: Now I can move it to viewport center
+Action: moveShape with blue rectangle to viewport center
+Observation: Moved blue rectangle to viewport center
+Final Answer: I've moved the blue rectangle to the center of your viewport.
 
 User: "Resize the circle to be twice as big"
 Thought: I need to find the circle and resize it by scale factor 2
@@ -69,6 +69,17 @@ Thought: I'll rotate it 45 degrees
 Action: rotateShape with text, degrees=45
 Observation: Rotated text by 45 degrees
 Final Answer: I've rotated the text 45 degrees.
+
+User: "Rotate the text 45 degrees" (when no text exists)
+Thought: I need to find the text and rotate it
+Action: listShapes
+Observation: No text found on canvas
+Thought: I'll create the text first, then rotate it
+Action: createShape with shapeType=text, text="Sample Text", x=viewport, y=viewport
+Observation: Created text at viewport center
+Action: rotateShape with the created text, degrees=45
+Observation: Rotated text by 45 degrees
+Final Answer: I've created the text and rotated it 45 degrees.
 
 **Layout Commands:**
 User: "Arrange these shapes in a horizontal row"

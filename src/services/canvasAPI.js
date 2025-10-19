@@ -31,6 +31,16 @@ export class CanvasAPI {
     if (this.canvas.store && typeof this.canvas.store.getState === 'function') {
       // Zustand store - get fresh state
       const state = this.canvas.store.getState();
+      console.log('🔄 Refreshed canvas context:', {
+        stageScale: state.stageScale,
+        stagePosition: state.stagePosition,
+        shapesCount: state.shapes?.size || 0
+      });
+    }
+    
+    // Force React re-render if available
+    if (this.canvas.triggerUpdate && typeof this.canvas.triggerUpdate === 'function') {
+      this.canvas.triggerUpdate();
     }
   }
 
@@ -873,25 +883,65 @@ export class CanvasAPI {
    * Get viewport center for positioning new elements
    */
   getViewportCenter() {
-    // Use canvas context to get current viewport center
+    console.log('🎯 Getting viewport center...');
+    
+    // Force refresh of canvas context to get latest stage information
+    this.refreshContext();
+    
+    // Try to get viewport center from canvas context
     if (this.canvas.getViewportCenter) {
-      return this.canvas.getViewportCenter();
+      const center = this.canvas.getViewportCenter();
+      console.log('🎯 Canvas context viewport center:', center);
+      return center;
     }
     
-    // Fallback to stage center if available
+    // Get fresh stage information from the store
+    const store = this.canvas.store;
     const stageRef = this.canvas.stageRef?.current;
+    const stageScale = store?.stageScale || 1;
+    const stagePosition = store?.stagePosition || { x: 0, y: 0 };
+    
+    console.log('🎯 Fresh stage info:', { 
+      stageRef: !!stageRef, 
+      stageScale, 
+      stagePosition,
+      storeExists: !!store,
+      storeStageScale: store?.stageScale,
+      storeStagePosition: store?.stagePosition
+    });
+    
     if (stageRef) {
       const stage = stageRef;
-      const scale = this.canvas.stageScale || 1;
-      const position = this.canvas.stagePosition || { x: 0, y: 0 };
-    
-    return {
-        x: (-position.x + stage.width() / 2) / scale,
-        y: (-position.y + stage.height() / 2) / scale
+      const containerRect = stage.container().getBoundingClientRect();
+      const containerCenter = {
+        x: containerRect.width / 2,
+        y: containerRect.height / 2
       };
+      
+      // Convert screen center to canvas coordinates
+      const canvasCenter = {
+        x: (containerCenter.x - stagePosition.x) / stageScale,
+        y: (containerCenter.y - stagePosition.y) / stageScale
+      };
+      
+      console.log('🎯 Calculated viewport center:', canvasCenter);
+      return canvasCenter;
     }
     
-    // Default fallback
+    // Fallback: use store values with assumed viewport size
+    if (store) {
+      // Assume 800x600 viewport for fallback calculation
+      const viewportCenter = {
+        x: (400 - stagePosition.x) / stageScale,
+        y: (300 - stagePosition.y) / stageScale
+      };
+      
+      console.log('🎯 Store-based viewport center:', viewportCenter);
+      return viewportCenter;
+    }
+    
+    // Final fallback
+    console.log('🎯 Using default fallback (0, 0)');
     return { x: 0, y: 0 };
   }
 
@@ -987,6 +1037,14 @@ export class CanvasAPI {
     // Calculate dimensions for collision detection
     let shapeWidth = width || defaults.width || (radiusX ? radiusX * 2 : 0) || 100;
     let shapeHeight = height || defaults.height || (radiusY ? radiusY * 2 : 0) || 100;
+    
+    // Handle viewport centering
+    if (x === 'viewport' || y === 'viewport') {
+      const viewportCenter = this.getViewportCenter();
+      console.log('🎯 Using viewport center for shape:', viewportCenter);
+      x = x === 'viewport' ? viewportCenter.x : x;
+      y = y === 'viewport' ? viewportCenter.y : y;
+    }
     
     // Use origin (0,0) if no position specified
     if (x === undefined || y === undefined) {
@@ -1142,6 +1200,173 @@ export class CanvasAPI {
     this._trackRecentlyCreated(newShape);
     
     return newShape;
+  }
+
+  /**
+   * Create shape data without database sync (for batch operations)
+   */
+  _createShapeData({
+    shapeType,
+    x,
+    y,
+    width,
+    height,
+    radiusX,
+    radiusY,
+    fill,
+    text,
+    fontSize,
+    fontFamily,
+    align,
+    background,
+    borderColor,
+    borderWidth,
+    cornerRadius,
+    stroke,
+    strokeWidth,
+    zIndex
+  }) {
+    const defaults = DEFAULT_SHAPE_PROPS[shapeType];
+    if (!defaults) {
+      console.error(`Invalid shape type: ${shapeType}`);
+      return null;
+    }
+
+    // Calculate dimensions for collision detection
+    let shapeWidth = width || defaults.width || (radiusX ? radiusX * 2 : 0) || 100;
+    let shapeHeight = height || defaults.height || (radiusY ? radiusY * 2 : 0) || 100;
+    
+    // Handle viewport centering
+    if (x === 'viewport' || y === 'viewport') {
+      const viewportCenter = this.getViewportCenter();
+      x = x === 'viewport' ? viewportCenter.x : x;
+      y = y === 'viewport' ? viewportCenter.y : y;
+    }
+    
+    // Use origin (0,0) if no position specified
+    if (x === undefined || y === undefined) {
+      x = x ?? 0;
+      y = y ?? 0;
+    }
+    
+    // Validate coordinates to prevent NaN
+    if (isNaN(x) || isNaN(y)) {
+      console.error(`❌ Invalid coordinates for ${shapeType}: x=${x}, y=${y}`);
+      x = x || 0;
+      y = y || 0;
+    }
+    
+    // Use exact coordinates as specified
+    const finalX = x;
+    const finalY = y;
+    
+    // Calculate fill color based on shape type
+    let finalFill;
+    if (shapeType === SHAPE_TYPES.TEXT || shapeType === SHAPE_TYPES.TEXT_INPUT) {
+      finalFill = this.parseColor(fill) || defaults.fill;
+    } else {
+      finalFill = this.parseColor(fill) || defaults.fill;
+    }
+
+    // Generate a unique ID for the shape
+    const timestamp = Date.now();
+    const random = Math.random().toString(36).substring(2, 8);
+    const shapeId = `shape-${timestamp}-${random}`;
+    
+    const newShape = {
+      id: shapeId,
+      type: shapeType,
+      x: finalX,
+      y: finalY,
+      fill: finalFill,
+      zIndex: zIndex ?? (this.canvas.shapes?.length || 0) + 1
+    };
+
+    // Add type-specific properties
+    switch (shapeType) {
+    case SHAPE_TYPES.RECTANGLE:
+      newShape.width = width || defaults.width;
+      newShape.height = height || defaults.height;
+      break;
+    
+    case SHAPE_TYPES.CIRCLE:
+      newShape.radiusX = radiusX || defaults.radiusX;
+      newShape.radiusY = radiusY || defaults.radiusY;
+      break;
+    
+    case SHAPE_TYPES.TEXT:
+      newShape.text = text || defaults.text;
+      newShape.fontSize = fontSize || defaults.fontSize;
+      newShape.fontFamily = fontFamily || defaults.fontFamily;
+      newShape.align = align || 'left';
+      newShape.width = width || defaults.width;
+      newShape.height = height || defaults.height;
+      break;
+    
+    case SHAPE_TYPES.TEXT_INPUT:
+      newShape.text = text || defaults.text;
+      newShape.fontSize = fontSize || defaults.fontSize;
+      newShape.fontFamily = fontFamily || defaults.fontFamily;
+      newShape.align = align || 'left';
+      newShape.width = width || defaults.width;
+      newShape.height = height || defaults.height;
+      newShape.background = background || defaults.background;
+      newShape.borderColor = borderColor || defaults.borderColor;
+      newShape.borderWidth = borderWidth ?? defaults.borderWidth;
+      newShape.cornerRadius = cornerRadius ?? defaults.cornerRadius;
+      break;
+    
+    case SHAPE_TYPES.TRIANGLE:
+      newShape.points = [...defaults.points];
+      newShape.closed = defaults.closed;
+      
+      if (width || height) {
+        const originalWidth = Math.abs(defaults.points[4] - defaults.points[2]);
+        const originalHeight = Math.abs(defaults.points[1] - defaults.points[3]);
+        
+        if (width) {
+          newShape.scaleX = width / originalWidth;
+        }
+        if (height) {
+          newShape.scaleY = height / originalHeight;
+        }
+      }
+      break;
+    
+    case SHAPE_TYPES.BEZIER_CURVE:
+      newShape.anchorPoints = defaults.anchorPoints.map(point => ({
+        x: point.x + (x || 0),
+        y: point.y + (y || 0)
+      }));
+      newShape.stroke = this.parseColor(fill) || defaults.stroke;
+      newShape.strokeWidth = defaults.strokeWidth;
+      newShape.smoothing = defaults.smoothing;
+      newShape.showAnchorPoints = defaults.showAnchorPoints;
+      delete newShape.fill;
+      break;
+    }
+
+    return newShape;
+  }
+
+  /**
+   * Batch add shapes to local store without database sync
+   */
+  async _batchAddShapes(shapeDataArray) {
+    if (!this.canvas || !this.canvas.addShape) {
+      throw new Error('Canvas context not available for batch add');
+    }
+
+    // Add all shapes to local store at once
+    for (const shapeData of shapeDataArray) {
+      try {
+        await this.canvas.addShape(shapeData);
+        console.log(`✅ Added shape ${shapeData.id} to local store`);
+      } catch (error) {
+        console.error(`❌ Failed to add shape ${shapeData.id} to local store:`, error);
+        throw error;
+      }
+    }
   }
 
   /**
@@ -1536,10 +1761,14 @@ export class CanvasAPI {
     const initialShapeCount = initialCanvasState.shapes.length;
     console.log(`📊 Initial canvas state: ${initialShapeCount} shapes`);
     
-    // Create each shape with detailed validation
+    // BATCH CREATION: Create all shapes locally first, then sync to database
+    console.log(`🔄 Starting batch creation of ${plan.positions.length} shapes...`);
+    
+    // Step 1: Create all shapes locally first
+    const localShapes = [];
     for (let i = 0; i < plan.positions.length; i++) {
       const position = plan.positions[i];
-      console.log(`🔵 Creating shape ${i + 1}/${plan.positions.length} at (${position.x}, ${position.y})`);
+      console.log(`🔵 Preparing shape ${i + 1}/${plan.positions.length} at (${position.x}, ${position.y})`);
       
       // Validate position is within reasonable bounds
       if (position.x < -1000 || position.x > 2000 || position.y < -1000 || position.y > 2000) {
@@ -1558,8 +1787,6 @@ export class CanvasAPI {
         fill: color,
       };
       
-      console.log(`📝 Shape ${i + 1} parameters:`, shapeParams);
-      
       // Validate all required parameters
       if (!shapeType) {
         console.error(`❌ Shape ${i + 1}: Missing shapeType`);
@@ -1574,48 +1801,74 @@ export class CanvasAPI {
         continue;
       }
       
+      // Create shape data without database sync
+      const shapeData = this._createShapeData(shapeParams);
+      if (shapeData) {
+        localShapes.push(shapeData);
+        console.log(`✅ Shape ${i + 1} data prepared:`, shapeData.id);
+      }
+    }
+    
+    console.log(`📦 Prepared ${localShapes.length} shapes for batch creation`);
+    
+    // Step 2: Use batch creation for database sync
+    if (localShapes.length > 0) {
       try {
-        // Create the shape
-        const shape = await this.createShape(shapeParams);
+        console.log(`🔄 Using batch creation for ${localShapes.length} shapes...`);
         
-        if (!shape) {
-          console.error(`❌ Shape ${i + 1}: createShape returned null/undefined`);
-          continue;
-        }
-        
-        if (!shape.id) {
-          console.error(`❌ Shape ${i + 1}: Created shape missing ID:`, shape);
-          continue;
-        }
-        
-        console.log(`✅ Shape ${i + 1} created successfully:`, {
-          id: shape.id,
-          type: shape.type,
-          x: shape.x,
-          y: shape.y,
-          width: shape.width,
-          height: shape.height
-        });
-        
-        shapes.push(shape);
-        
-        // Verify shape was added to canvas
-        const currentCanvasState = this.getCanvasState();
-        const currentShapeCount = currentCanvasState.shapes.length;
-        console.log(`📊 Canvas state after shape ${i + 1}: ${currentShapeCount} shapes (was ${initialShapeCount + i})`);
-        
-        if (currentShapeCount <= initialShapeCount + i) {
-          console.error(`❌ Shape ${i + 1} was not added to canvas! Expected ${initialShapeCount + i + 1} shapes, got ${currentShapeCount}`);
+        // Use the canvas context's batch creation method
+        if (this.canvas && this.canvas.createShapesBatch) {
+          const syncedShapes = await this.canvas.createShapesBatch(localShapes);
+          shapes.push(...syncedShapes);
+          console.log(`✅ Batch creation completed: ${syncedShapes.length} shapes synced`);
+        } else {
+          // Fallback to individual creation
+          console.log(`🔄 Batch creation not available, using individual creation...`);
+          for (const shapeData of localShapes) {
+            try {
+              const shape = await this.createShape({
+                shapeType: shapeData.type,
+                x: shapeData.x,
+                y: shapeData.y,
+                width: shapeData.width,
+                height: shapeData.height,
+                radiusX: shapeData.radiusX,
+                radiusY: shapeData.radiusY,
+                fill: shapeData.fill
+              });
+              if (shape) {
+                shapes.push(shape);
+              }
+            } catch (error) {
+              console.error(`❌ Individual creation failed for shape ${shapeData.id}:`, error);
+            }
+          }
         }
         
       } catch (error) {
-        console.error(`❌ Shape ${i + 1} creation failed:`, error);
-        console.error(`❌ Error details:`, {
-          message: error.message,
-          stack: error.stack,
-          shapeParams
-        });
-        continue;
+        console.error(`❌ Batch creation failed:`, error);
+        // Final fallback to individual creation
+        console.log(`🔄 Final fallback to individual shape creation...`);
+        
+        for (const shapeData of localShapes) {
+          try {
+            const shape = await this.createShape({
+              shapeType: shapeData.type,
+              x: shapeData.x,
+              y: shapeData.y,
+              width: shapeData.width,
+              height: shapeData.height,
+              radiusX: shapeData.radiusX,
+              radiusY: shapeData.radiusY,
+              fill: shapeData.fill
+            });
+            if (shape) {
+              shapes.push(shape);
+            }
+          } catch (error) {
+            console.error(`❌ Final fallback creation failed for shape ${shapeData.id}:`, error);
+          }
+        }
       }
     }
     
@@ -1749,22 +2002,31 @@ export class CanvasAPI {
       if (shape) shapes.push(shape);
     }
     
-    if (shapes.length === 0) {
-      throw new Error('No valid shapes found to arrange');
+    // Filter to only include rectangle, triangle, and circle shapes
+    const allowedTypes = ['rectangle', 'triangle', 'circle'];
+    const filteredShapes = shapes.filter(shape => allowedTypes.includes(shape.type));
+    
+    if (filteredShapes.length === 0) {
+      throw new Error('No valid shapes found to arrange (only rectangle, triangle, and circle shapes are supported)');
+    }
+    
+    if (filteredShapes.length < shapes.length) {
+      const ignoredCount = shapes.length - filteredShapes.length;
+      console.warn(`⚠️ Ignored ${ignoredCount} shapes that are not rectangle, triangle, or circle types`);
     }
     
     const planner = new SpatialPlanner();
-    const shapeWidth = shapes[0].width || 100;
-    const shapeHeight = shapes[0].height || 100;
+    const shapeWidth = filteredShapes[0].width || 100;
+    const shapeHeight = filteredShapes[0].height || 100;
     
-    const plan = planner.planRow(shapes.length, shapeWidth, shapeHeight, startX, startY, spacing);
+    const plan = planner.planRow(filteredShapes.length, shapeWidth, shapeHeight, startX, startY, spacing);
     
-    for (let i = 0; i < shapes.length; i++) {
-      await this.moveShape(shapes[i].id, plan.positions[i].x, plan.positions[i].y);
+    for (let i = 0; i < filteredShapes.length; i++) {
+      await this.moveShape(filteredShapes[i].id, plan.positions[i].x, plan.positions[i].y);
     }
     
     return {
-      shapeCount: shapes.length,
+      shapeCount: filteredShapes.length,
       arrangement: 'row',
       spacing: plan.spacing,
       totalWidth: plan.totalWidth
@@ -1781,22 +2043,31 @@ export class CanvasAPI {
       if (shape) shapes.push(shape);
     }
     
-    if (shapes.length === 0) {
-      throw new Error('No valid shapes found to arrange');
+    // Filter to only include rectangle, triangle, and circle shapes
+    const allowedTypes = ['rectangle', 'triangle', 'circle'];
+    const filteredShapes = shapes.filter(shape => allowedTypes.includes(shape.type));
+    
+    if (filteredShapes.length === 0) {
+      throw new Error('No valid shapes found to arrange (only rectangle, triangle, and circle shapes are supported)');
+    }
+    
+    if (filteredShapes.length < shapes.length) {
+      const ignoredCount = shapes.length - filteredShapes.length;
+      console.warn(`⚠️ Ignored ${ignoredCount} shapes that are not rectangle, triangle, or circle types`);
     }
     
     const planner = new SpatialPlanner();
-    const shapeWidth = shapes[0].width || 100;
-    const shapeHeight = shapes[0].height || 100;
+    const shapeWidth = filteredShapes[0].width || 100;
+    const shapeHeight = filteredShapes[0].height || 100;
     
     const plan = planner.planGrid(rows, cols, shapeWidth, shapeHeight, startX, startY, spacingX, spacingY);
     
-    for (let i = 0; i < Math.min(shapes.length, plan.positions.length); i++) {
-      await this.moveShape(shapes[i].id, plan.positions[i].x, plan.positions[i].y);
+    for (let i = 0; i < Math.min(filteredShapes.length, plan.positions.length); i++) {
+      await this.moveShape(filteredShapes[i].id, plan.positions[i].x, plan.positions[i].y);
     }
     
     return {
-      shapeCount: shapes.length,
+      shapeCount: filteredShapes.length,
       arrangement: 'grid',
       rows,
       cols,
@@ -1815,22 +2086,31 @@ export class CanvasAPI {
       if (shape) shapes.push(shape);
     }
     
-    if (shapes.length === 0) {
-      throw new Error('No valid shapes found to distribute');
+    // Filter to only include rectangle, triangle, and circle shapes
+    const allowedTypes = ['rectangle', 'triangle', 'circle'];
+    const filteredShapes = shapes.filter(shape => allowedTypes.includes(shape.type));
+    
+    if (filteredShapes.length === 0) {
+      throw new Error('No valid shapes found to distribute (only rectangle, triangle, and circle shapes are supported)');
+    }
+    
+    if (filteredShapes.length < shapes.length) {
+      const ignoredCount = shapes.length - filteredShapes.length;
+      console.warn(`⚠️ Ignored ${ignoredCount} shapes that are not rectangle, triangle, or circle types`);
     }
     
     const planner = new SpatialPlanner();
-    const shapeWidth = shapes[0].width || 100;
-    const startY = shapes[0].y || 0;
+    const shapeWidth = filteredShapes[0].width || 100;
+    const startY = filteredShapes[0].y || 0;
     
-    const plan = planner.planEvenDistribution(shapes.length, shapeWidth, containerWidth, startY, direction);
+    const plan = planner.planEvenDistribution(filteredShapes.length, shapeWidth, containerWidth, startY, direction);
     
-    for (let i = 0; i < shapes.length; i++) {
-      await this.moveShape(shapes[i].id, plan.positions[i].x, plan.positions[i].y);
+    for (let i = 0; i < filteredShapes.length; i++) {
+      await this.moveShape(filteredShapes[i].id, plan.positions[i].x, plan.positions[i].y);
     }
     
     return {
-      shapeCount: shapes.length,
+      shapeCount: filteredShapes.length,
       arrangement: 'even',
       actualSpacing: plan.actualSpacing,
       totalWidth: plan.totalWidth
@@ -1909,30 +2189,40 @@ export class CanvasAPI {
    */
   async arrangeShapes({ shapeIds, arrangement, centerX, centerY, spacing = 80 }) {
     const shapes = this.canvas.shapes?.filter(s => shapeIds.includes(s.id)) || [];
-    if (shapes.length === 0) {
-      throw new Error('No valid shapes found to arrange');
+    
+    // Filter to only include rectangle, triangle, and circle shapes
+    const allowedTypes = ['rectangle', 'triangle', 'circle'];
+    const filteredShapes = shapes.filter(shape => allowedTypes.includes(shape.type));
+    
+    if (filteredShapes.length === 0) {
+      throw new Error('No valid shapes found to arrange (only rectangle, triangle, and circle shapes are supported)');
+    }
+    
+    if (filteredShapes.length < shapes.length) {
+      const ignoredCount = shapes.length - filteredShapes.length;
+      console.warn(`⚠️ Ignored ${ignoredCount} shapes that are not rectangle, triangle, or circle types`);
     }
 
     const arrangements = [];
     
-    for (let i = 0; i < shapes.length; i++) {
+    for (let i = 0; i < filteredShapes.length; i++) {
       let x = centerX;
       let y = centerY;
       
       switch (arrangement) {
         case 'row':
-          x = centerX + ((i - (shapes.length - 1) / 2) * spacing);
+          x = centerX + ((i - (filteredShapes.length - 1) / 2) * spacing);
           break;
         case 'column':
-          y = centerY + ((i - (shapes.length - 1) / 2) * spacing);
+          y = centerY + ((i - (filteredShapes.length - 1) / 2) * spacing);
           break;
         case 'grid':
-          const cols = Math.ceil(Math.sqrt(shapes.length));
+          const cols = Math.ceil(Math.sqrt(filteredShapes.length));
           x = centerX + (((i % cols) - (cols - 1) / 2) * spacing);
-          y = centerY + ((Math.floor(i / cols) - (Math.ceil(shapes.length / cols) - 1) / 2) * spacing);
+          y = centerY + ((Math.floor(i / cols) - (Math.ceil(filteredShapes.length / cols) - 1) / 2) * spacing);
           break;
         case 'circle':
-          const angleDegrees = (i / shapes.length) * 360;
+          const angleDegrees = (i / filteredShapes.length) * 360;
           const angleRadians = (angleDegrees * Math.PI) / 180;
           const radius = spacing;
           x = centerX + Math.cos(angleRadians) * radius;
@@ -1940,8 +2230,8 @@ export class CanvasAPI {
           break;
       }
       
-      await this.moveShape(shapes[i].id, x, y);
-      arrangements.push({ shapeId: shapes[i].id, x, y });
+      await this.moveShape(filteredShapes[i].id, x, y);
+      arrangements.push({ shapeId: filteredShapes[i].id, x, y });
     }
     
     return arrangements;
@@ -2279,12 +2569,25 @@ export class CanvasAPI {
       throw new Error('No shapes selected. Please select shapes first to arrange them.');
     }
     
+    // Filter to only include rectangle, triangle, and circle shapes
+    const allowedTypes = ['rectangle', 'triangle', 'circle'];
+    const filteredShapes = selectedShapes.filter(shape => allowedTypes.includes(shape.type));
+    
+    if (filteredShapes.length === 0) {
+      throw new Error('No rectangle, triangle, or circle shapes selected. Please select valid shapes to arrange them.');
+    }
+    
+    if (filteredShapes.length < selectedShapes.length) {
+      const ignoredCount = selectedShapes.length - filteredShapes.length;
+      console.warn(`⚠️ Ignored ${ignoredCount} shapes that are not rectangle, triangle, or circle types`);
+    }
+    
     // Sort by current x position
-    selectedShapes.sort((a, b) => a.x - b.x);
+    filteredShapes.sort((a, b) => a.x - b.x);
     
     // Calculate total width needed
-    const totalWidth = selectedShapes.reduce((sum, shape) => sum + (shape.width || 100), 0);
-    const totalSpacing = (selectedShapes.length - 1) * spacing;
+    const totalWidth = filteredShapes.reduce((sum, shape) => sum + (shape.width || 100), 0);
+    const totalSpacing = (filteredShapes.length - 1) * spacing;
     const totalNeeded = totalWidth + totalSpacing;
     
     // Start position (centered)
@@ -2292,7 +2595,7 @@ export class CanvasAPI {
     let currentX = startX;
     
     const results = [];
-    for (const shape of selectedShapes) {
+    for (const shape of filteredShapes) {
       const shapeWidth = shape.width || 100;
       const y = 300; // Center vertically
       
@@ -2304,7 +2607,7 @@ export class CanvasAPI {
     
     return {
       success: true,
-      shapesArranged: selectedShapes.length,
+      shapesArranged: filteredShapes.length,
       pattern: 'horizontal_row',
       results: results
     };
@@ -2356,22 +2659,35 @@ export class CanvasAPI {
       throw new Error('Please select at least 2 shapes to distribute evenly.');
     }
     
+    // Filter to only include rectangle, triangle, and circle shapes
+    const allowedTypes = ['rectangle', 'triangle', 'circle'];
+    const filteredShapes = selectedShapes.filter(shape => allowedTypes.includes(shape.type));
+    
+    if (filteredShapes.length < 2) {
+      throw new Error('Please select at least 2 rectangle, triangle, or circle shapes to distribute evenly.');
+    }
+    
+    if (filteredShapes.length < selectedShapes.length) {
+      const ignoredCount = selectedShapes.length - filteredShapes.length;
+      console.warn(`⚠️ Ignored ${ignoredCount} shapes that are not rectangle, triangle, or circle types`);
+    }
+    
     // Sort shapes by position
-    selectedShapes.sort((a, b) => {
+    filteredShapes.sort((a, b) => {
       return direction === 'horizontal' ? a.x - b.x : a.y - b.y;
     });
     
-    const first = selectedShapes[0];
-    const last = selectedShapes[selectedShapes.length - 1];
+    const first = filteredShapes[0];
+    const last = filteredShapes[filteredShapes.length - 1];
     const totalSpace = direction === 'horizontal' 
       ? last.x - first.x 
       : last.y - first.y;
     
-    const spacing = totalSpace / (selectedShapes.length - 1);
+    const spacing = totalSpace / (filteredShapes.length - 1);
     
     const results = [];
-    for (let i = 1; i < selectedShapes.length - 1; i++) {
-      const shape = selectedShapes[i];
+    for (let i = 1; i < filteredShapes.length - 1; i++) {
+      const shape = filteredShapes[i];
       const newPos = direction === 'horizontal'
         ? { x: first.x + (spacing * i), y: shape.y }
         : { x: shape.x, y: first.y + (spacing * i) };
@@ -2382,7 +2698,7 @@ export class CanvasAPI {
     
     return {
       success: true,
-      shapesDistributed: selectedShapes.length,
+      shapesDistributed: filteredShapes.length,
       direction: direction,
       results: results
     };
@@ -2402,13 +2718,22 @@ export class CanvasAPI {
       if (shape) shapes.push(shape);
     }
 
-    if (shapes.length === 0) {
-      throw new Error('No valid shapes found for arrangement');
+    // Filter to only include rectangle, triangle, and circle shapes
+    const allowedTypes = ['rectangle', 'triangle', 'circle'];
+    const filteredShapes = shapes.filter(shape => allowedTypes.includes(shape.type));
+    
+    if (filteredShapes.length === 0) {
+      throw new Error('No valid shapes found for arrangement (only rectangle, triangle, and circle shapes are supported)');
+    }
+    
+    if (filteredShapes.length < shapes.length) {
+      const ignoredCount = shapes.length - filteredShapes.length;
+      console.warn(`⚠️ Ignored ${ignoredCount} shapes that are not rectangle, triangle, or circle types`);
     }
 
     // Calculate total width needed
-    const totalWidth = shapes.reduce((sum, shape) => sum + (shape.width || 100), 0);
-    const totalSpacing = (shapes.length - 1) * spacing;
+    const totalWidth = filteredShapes.reduce((sum, shape) => sum + (shape.width || 100), 0);
+    const totalSpacing = (filteredShapes.length - 1) * spacing;
     const totalNeeded = totalWidth + totalSpacing;
     
     // Start position (centered)
@@ -2416,8 +2741,8 @@ export class CanvasAPI {
     let currentX = startX;
 
     const results = [];
-    for (let i = 0; i < shapes.length; i++) {
-      const shape = shapes[i];
+    for (let i = 0; i < filteredShapes.length; i++) {
+      const shape = filteredShapes[i];
       const shapeWidth = shape.width || 100;
       
       // Center the shape vertically
@@ -2436,7 +2761,7 @@ export class CanvasAPI {
 
     return {
       pattern: 'row',
-      shapeCount: shapes.length,
+      shapeCount: filteredShapes.length,
       spacing: spacing,
       results: results
     };
@@ -2561,12 +2886,21 @@ export class CanvasAPI {
       }
     }
 
-    if (shapes.length === 0) {
-      throw new Error(`No valid shapes found for distribution. Not found: ${notFoundShapes.join(', ')}`);
+    // Filter to only include rectangle, triangle, and circle shapes
+    const allowedTypes = ['rectangle', 'triangle', 'circle'];
+    const filteredShapes = shapes.filter(shape => allowedTypes.includes(shape.type));
+    
+    if (filteredShapes.length === 0) {
+      throw new Error(`No valid shapes found for distribution (only rectangle, triangle, and circle shapes are supported). Not found: ${notFoundShapes.join(', ')}`);
+    }
+    
+    if (filteredShapes.length < shapes.length) {
+      const ignoredCount = shapes.length - filteredShapes.length;
+      console.warn(`⚠️ Ignored ${ignoredCount} shapes that are not rectangle, triangle, or circle types`);
     }
     
     if (notFoundShapes.length > 0) {
-      console.warn(`⚠️ Some shapes not found, distributing ${shapes.length} available shapes: ${notFoundShapes.join(', ')}`);
+      console.warn(`⚠️ Some shapes not found, distributing ${filteredShapes.length} available shapes: ${notFoundShapes.join(', ')}`);
     }
 
     // Validate bounds object
@@ -2577,7 +2911,7 @@ export class CanvasAPI {
     }
     
     // Calculate optimal spacing
-    const totalShapes = shapes.length;
+    const totalShapes = filteredShapes.length;
     const availableWidth = bounds.width;
     const availableHeight = bounds.height;
     
@@ -2596,8 +2930,8 @@ export class CanvasAPI {
     const cellHeight = availableHeight / rows;
 
     const results = [];
-    for (let i = 0; i < shapes.length; i++) {
-      const shape = shapes[i];
+    for (let i = 0; i < filteredShapes.length; i++) {
+      const shape = filteredShapes[i];
       const row = Math.floor(i / cols);
       const col = i % cols;
       
@@ -2613,7 +2947,7 @@ export class CanvasAPI {
 
     return {
       pattern: 'distributed',
-      shapeCount: shapes.length,
+      shapeCount: filteredShapes.length,
       grid: { rows, cols },
       bounds: bounds,
       results: results
@@ -3212,7 +3546,7 @@ export class CanvasAPI {
   /**
    * Create a FormContainer - a centered container for form elements
    */
-  async createFormContainer(width = 360, height = 400, centerX = 0, centerY = 0) {
+  async createFormContainer(width = 360, height = 400, centerX = 0, centerY = 0, fill = '#F9FAFB') {
     try {
       // Get viewport center if not provided
       if (centerX === undefined || centerY === undefined) {
@@ -3221,14 +3555,14 @@ export class CanvasAPI {
         centerY = centerY ?? center.y;
       }
       
-      console.log('📦 Creating form container...', { width, height, centerX, centerY });
+      console.log('📦 Creating form container...', { width, height, centerX, centerY, fill });
       const container = await this.createShape({
         shapeType: 'rectangle',
         x: centerX,
         y: centerY,
         width: width,
         height: height,
-        fill: '#F9FAFB',
+        fill: fill,
         stroke: '#E5E7EB',
         strokeWidth: 2,
         zIndex: 1  // Ensure it's behind other elements

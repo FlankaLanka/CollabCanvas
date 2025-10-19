@@ -85,25 +85,27 @@ class ComplexPlanner {
         name: 'Navigation Bar Creation',
         steps: [
           // Container - centered at user's viewport
-          { action: 'createFormContainer', params: { width: 800, height: 60, centerX: 'viewport', centerY: 'viewport' } },
+          { action: 'createFormContainer', params: { width: 800, height: 60, centerX: 'viewport', centerY: 'viewport', fill: '#6ea0ff' } },
           
           // Navigation items - relative to container
-          { action: 'createShape', params: { shapeType: 'text', text: '🏠Home', x: 'container+20', y: 'container+0', fontSize: 16, fill: '#FFFFFF' } },
-          { action: 'createShape', params: { shapeType: 'text', text: '👤About', x: 'container+100', y: 'container+0', fontSize: 16, fill: '#FFFFFF' } },
-          { action: 'createShape', params: { shapeType: 'text', text: '📞Contact', x: 'container+180', y: 'container+0', fontSize: 16, fill: '#FFFFFF' } },
-          { action: 'createShape', params: { shapeType: 'text', text: '💼Services', x: 'container+260', y: 'container+0', fontSize: 16, fill: '#FFFFFF' } }
+          { action: 'createShape', params: { shapeType: 'text', text: 'Hi,(user)', x: 'container-285', y: 'container-15', fontSize: 16, fill: '#FFFFFF' } },
+          { action: 'createShape', params: { shapeType: 'text', text: '🏠Home', x: 'container-100', y: 'container-15', fontSize: 16, fill: '#FFFFFF' } },
+          { action: 'createShape', params: { shapeType: 'text', text: '👤About', x: 'container+50', y: 'container-15', fontSize: 16, fill: '#FFFFFF' } },
+          { action: 'createShape', params: { shapeType: 'text', text: '📞Contact', x: 'container+200', y: 'container-15', fontSize: 16, fill: '#FFFFFF' } },
+          { action: 'createShape', params: { shapeType: 'text', text: '💼Services', x: 'container+350', y: 'container-15', fontSize: 16, fill: '#FFFFFF' } }
         ]
       },
-      'card layout': {
-        name: 'Card Layout Creation',
+      'card': {
+        name: 'Card Creation',
         steps: [
           // Container - centered at user's viewport
-          { action: 'createFormContainer', params: { width: 300, height: 200, centerX: 'viewport', centerY: 'viewport' } },
+          { action: 'createFormContainer', params: { width: 300, height: 300, centerX: 'viewport', centerY: 'viewport' } },
           
           // Card content - relative to container
-          { action: 'createShape', params: { shapeType: 'text', text: 'Card Title', x: 'container+20', y: 'container+20', fontSize: 18, fill: '#1F2937' } },
-          { action: 'createShape', params: { shapeType: 'text', text: 'This is the card content area where you can place your main information.', x: 'container+20', y: 'container+60', fontSize: 14, fill: '#6B7280' } },
-          { action: 'createShape', params: { shapeType: 'rectangle', text: 'Learn More', x: 'container+20', y: 'container+150', width: 100, height: 30, fill: '#3B82F6' } }
+          { action: 'createShape', params: { shapeType: 'text', text: 'Card Title', x: 'container+0', y: 'container-140', fontSize: 18, fill: '#1F2937', fontFamily: 'Comic Sans MS', align: 'center' } },
+          { action: 'createShape', params: { shapeType: 'rectangle', text: 'Learn More', x: 'container+0', y: 'container-20', width: 200, height: 150, fill: '#ffc529'} },
+          { action: 'createShape', params: { shapeType: 'text', text: '📸Image', x: 'container+0', y: 'container-30', fontSize: 18, fill: '#1F2937', fontFamily: 'Comic Sans MS', align: 'center' } },
+          { action: 'createShape', params: { shapeType: 'text', text: 'This is the card content area where you can place your main information.', x: 'container+0', y: 'container+70', fontSize: 14, fill: '#6B7280', fontFamily: 'Comic Sans MS', align: 'center' } },
         ]
       },
       'dashboard': {
@@ -161,10 +163,15 @@ class ComplexPlanner {
       /build.*login.*form/i,
       /generate.*login.*form/i,
       /create.*navigation.*bar/i,
+      /build.*navigation.*bar/i,
       /build.*navbar/i,
       /create.*nav.*bar/i,
       /create.*card.*layout/i,
+      /build.*card.*layout/i,
+      /make.*card.*layout/i,
+      /create.*card/i,
       /build.*card/i,
+      /make.*card/i,
       /create.*dashboard/i,
       /build.*dashboard/i,
       /create.*contact.*form/i,
@@ -191,6 +198,19 @@ class ComplexPlanner {
           type: 'predefined',
           name: plan.name,
           steps: plan.steps,
+          source: 'predefined'
+        };
+      }
+    }
+
+    // Special handling for card layout -> use card plan
+    if (message.includes('card layout')) {
+      const cardPlan = this.predefinedPlans['card'];
+      if (cardPlan) {
+        return {
+          type: 'predefined',
+          name: cardPlan.name,
+          steps: cardPlan.steps,
           source: 'predefined'
         };
       }
@@ -328,7 +348,8 @@ class ComplexPlanner {
           params.width, 
           params.height, 
           centerX, 
-          centerY
+          centerY,
+          params.fill
         );
         
         // Store the container for relative positioning
@@ -1364,6 +1385,9 @@ export const AI_FUNCTIONS = [
   }
 ];
 
+// Import reasoning system components
+import { CommandPreprocessor } from './ai/commandPreprocessor.js';
+
 // AI Canvas Service - Handles natural language commands and executes canvas operations
 export class AICanvasService {
   constructor(canvasAPI) {
@@ -1373,6 +1397,9 @@ export class AICanvasService {
     
     // Initialize complex command planner for multi-step execution
     this.complexPlanner = new ComplexPlanner(canvasAPI);
+    
+    // Initialize reasoning system for non-complex commands
+    this.commandPreprocessor = new CommandPreprocessor(canvasAPI);
     
     // Frontend uses HTTP requests to backend, not direct LangChain
     console.log('🤖 AICanvasService initialized (frontend mode)');
@@ -1532,7 +1559,7 @@ ${JSON.stringify(currentCanvasState, null, 2)}`
               const result = await this.executeFunctionCall({
                 name: toolCall.function.name,
                 arguments: toolCall.function.arguments
-              });
+              }, userMessage);
               results.push(result);
               functionCalls.push({
                 name: toolCall.function.name,
@@ -1550,7 +1577,7 @@ ${JSON.stringify(currentCanvasState, null, 2)}`
           for (const functionCall of responseMessage.function_calls) {
             try {
               console.log('🔧 Executing function call:', functionCall.name, 'with args:', functionCall.arguments);
-              const result = await this.executeFunctionCall(functionCall);
+              const result = await this.executeFunctionCall(functionCall, userMessage);
               results.push(result);
               functionCalls.push(functionCall);
               console.log('✅ Composite function executed successfully:', functionCall.name, 'result:', result);
@@ -1566,7 +1593,7 @@ ${JSON.stringify(currentCanvasState, null, 2)}`
             const result = await this.executeFunctionCall({
               name: toolCall.function.name,
               arguments: toolCall.function.arguments
-            });
+            }, userMessage);
             results.push(result);
             functionCalls.push({
               name: toolCall.function.name,
@@ -1581,7 +1608,7 @@ ${JSON.stringify(currentCanvasState, null, 2)}`
           const functionCall = responseMessage.function_call;
           try {
             console.log('🔧 Executing single function call:', functionCall.name, 'with args:', functionCall.arguments);
-            const result = await this.executeFunctionCall(functionCall);
+            const result = await this.executeFunctionCall(functionCall, userMessage);
             results.push(result);
             functionCalls.push(functionCall);
             console.log('✅ Function executed successfully:', functionCall.name, 'result:', result);
@@ -1734,7 +1761,7 @@ The server will handle command interpretation automatically. Just pass the user'
         for (const functionCall of responseMessage.function_calls) {
           try {
             console.log('🔧 Executing function call:', functionCall.name, 'with args:', functionCall.arguments);
-            const result = await this.executeFunctionCall(functionCall);
+            const result = await this.executeFunctionCall(functionCall, userMessage);
             results.push(result);
             functionCalls.push(functionCall);
             console.log('✅ Composite function executed successfully:', functionCall.name, 'result:', result);
@@ -1756,7 +1783,7 @@ The server will handle command interpretation automatically. Just pass the user'
           const result = await this.executeFunctionCall({
             name: toolCall.function.name,
             arguments: toolCall.function.arguments
-          });
+          }, userMessage);
           results.push(result);
           console.log('✅ Tool call executed successfully:', toolCall.function.name);
         } catch (functionError) {
@@ -2003,7 +2030,7 @@ Alternative: Deploy to Vercel/Netlify to test AI features in production.`;
           const result = await this.executeFunctionCall({
             name: toolCall.function.name,
             arguments: toolCall.function.arguments
-          });
+          }, userMessage);
           results.push(result);
           console.log('✅ Tool call executed successfully:', toolCall.function.name);
         } catch (functionError) {
@@ -2226,12 +2253,107 @@ Alternative: Deploy to Vercel/Netlify to test AI features in production.`;
     return `${color} ${type}`;
   }
 
-  // Execute a function call from the AI
-  async executeFunctionCall(functionCall) {
+  // Execute chained creation and manipulation commands
+  async executeChainedCommand(manipulationCommand, params, shapeType, userMessage) {
+    console.log('🔗 Executing chained command:', { manipulationCommand, shapeType, params });
+    
+    try {
+      // Step 1: Create the shape first
+      const createParams = {
+        shapeType: shapeType,
+        x: 'viewport',
+        y: 'viewport',
+        fill: params.fill || 'blue',
+        text: params.text || 'Sample Text',
+        width: params.width || 100,
+        height: params.height || 100
+      };
+      
+      console.log('🔗 Step 1: Creating shape with params:', createParams);
+      const createdShape = await this.canvasAPI.createShape(createParams);
+      console.log('✅ Shape created:', createdShape);
+      
+      // Step 2: Apply the manipulation command
+      const manipulationParams = {
+        ...params,
+        shapeId: createdShape.id,
+        shapeDescription: createdShape.id
+      };
+      
+      console.log('🔗 Step 2: Applying manipulation with params:', manipulationParams);
+      const manipulationResult = await this.executeManipulationCommand(manipulationCommand, manipulationParams);
+      console.log('✅ Manipulation applied:', manipulationResult);
+      
+      return {
+        success: true,
+        createdShape: createdShape,
+        manipulationResult: manipulationResult,
+        message: `Created ${shapeType} and applied ${manipulationCommand} successfully`
+      };
+      
+    } catch (error) {
+      console.error('❌ Chained command failed:', error);
+      throw new Error(`Failed to create and manipulate shape: ${error.message}`);
+    }
+  }
+
+  // Execute manipulation command (extracted for reuse)
+  async executeManipulationCommand(command, params) {
+    switch (command) {
+      case 'rotateShape':
+        return await this.canvasAPI.rotateShape(params.shapeId, params.degrees);
+      case 'moveShape':
+        return await this.canvasAPI.moveShape(params.shapeId, params.x, params.y);
+      case 'resizeShape':
+        return await this.canvasAPI.resizeShape(params.shapeId, params);
+      case 'changeShapeColor':
+        return await this.canvasAPI.changeShapeColor(params.shapeId, params.color);
+      case 'changeShapeText':
+        return await this.canvasAPI.changeShapeText(params.shapeId, params.text);
+      default:
+        throw new Error(`Unknown manipulation command: ${command}`);
+    }
+  }
+
+  // Execute a function call from the AI with enhanced reasoning
+  async executeFunctionCall(functionCall, userMessage = '') {
     const { name, arguments: args } = functionCall;
     const parsedArgs = JSON.parse(args);
 
     console.log('🔧 Executing function:', name, 'with args:', parsedArgs);
+    
+    // Enhanced reasoning: Preprocess non-complex commands
+    let preprocessing = null;
+    if (this.commandPreprocessor.shouldPreprocess(name)) {
+      console.log('🧠 Preprocessing command for enhanced reasoning...');
+      preprocessing = await this.commandPreprocessor.preprocessCommand(userMessage, {
+        name,
+        arguments: parsedArgs
+      });
+      
+      console.log('🧠 Preprocessing result:', {
+        shouldExecute: preprocessing.shouldExecute,
+        reasoning: preprocessing.reasoning,
+        userFeedback: preprocessing.userFeedback
+      });
+      
+      // If command should not execute, return early with feedback
+      if (!preprocessing.shouldExecute) {
+        throw new Error(preprocessing.userFeedback);
+      }
+      
+      // Use enhanced parameters if available
+      if (preprocessing.enhancedParams) {
+        Object.assign(parsedArgs, preprocessing.enhancedParams);
+        console.log('🧠 Using enhanced parameters:', parsedArgs);
+        
+        // Handle createFirst flag - chain creation and manipulation
+        if (preprocessing.enhancedParams.createFirst && preprocessing.enhancedParams.shapeType) {
+          console.log('🔄 Chaining creation and manipulation commands...');
+          return await this.executeChainedCommand(name, parsedArgs, preprocessing.enhancedParams.shapeType, userMessage);
+        }
+      }
+    }
     
     // DEBUG: Log canvas state before execution
     const canvasStateBefore = this.canvasAPI.getCanvasState();
@@ -2268,10 +2390,11 @@ Alternative: Deploy to Vercel/Netlify to test AI features in production.`;
         let x = parsedArgs.x;
         let y = parsedArgs.y;
         
-        // Convert "center" strings to origin (0,0)
-        if (x === 'center' || y === 'center') {
-          if (x === 'center') x = 0;
-          if (y === 'center') y = 0;
+        // Convert "center" strings to viewport center
+        if (x === 'center' || y === 'center' || x === 'viewport' || y === 'viewport') {
+          const viewportCenter = this.canvasAPI.getViewportCenter();
+          if (x === 'center' || x === 'viewport') x = viewportCenter.x;
+          if (y === 'center' || y === 'viewport') y = viewportCenter.y;
         }
         
         return await this.canvasAPI.moveShape(parsedArgs.shapeId || parsedArgs.shapeDescription, x, y);
@@ -2402,7 +2525,7 @@ Alternative: Deploy to Vercel/Netlify to test AI features in production.`;
         return await this.canvasAPI.validateUILayout();
         
       case 'createFormContainer':
-        return await this.canvasAPI.createFormContainer(parsedArgs.width, parsedArgs.height, parsedArgs.centerX, parsedArgs.centerY);
+        return await this.canvasAPI.createFormContainer(parsedArgs.width, parsedArgs.height, parsedArgs.centerX, parsedArgs.centerY, parsedArgs.fill);
         
       case 'stackVertically':
         return await this.canvasAPI.stackVertically(parsedArgs.elements, parsedArgs.container, parsedArgs.startY, parsedArgs.gap);

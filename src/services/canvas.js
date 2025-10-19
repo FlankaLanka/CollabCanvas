@@ -290,6 +290,132 @@ export async function unlockShape(projectId, shapeId) {
 }
 
 /**
+ * Batch create multiple shapes atomically
+ * @param {string} projectId - Project ID (used as canvas document ID)
+ * @param {Array} shapes - Array of shapes to create
+ */
+export async function batchCreateShapes(projectId, shapes) {
+  if (!hasFirebaseConfig || !db) {
+    console.log('🎨 Development mode: Skipping batch shape creation in Firestore');
+    return shapes;
+  }
+
+  if (!shapes || shapes.length === 0) {
+    console.warn('⚠️ No shapes provided for batch creation');
+    return [];
+  }
+
+  try {
+    const canvasRef = doc(db, CANVAS_COLLECTION, projectId);
+    const currentUser = getCurrentUser();
+    const now = new Date();
+    
+    // Prepare all shapes with metadata
+    const shapesWithMetadata = shapes.map(shapeData => ({
+      id: shapeData.id,
+      type: shapeData.type || 'rectangle',
+      x: shapeData.x || 0,
+      y: shapeData.y || 0,
+      width: shapeData.width || 100,
+      height: shapeData.height || 100,
+      fill: shapeData.fill || '#3B82F6',
+      stroke: shapeData.stroke || '#1E40AF',
+      strokeWidth: shapeData.strokeWidth || 2,
+      rotation: shapeData.rotation || 0,
+      scaleX: shapeData.scaleX || 1,
+      scaleY: shapeData.scaleY || 1,
+      createdBy: currentUser?.uid || 'anonymous',
+      createdAt: now,
+      lastModifiedBy: currentUser?.uid || 'anonymous', 
+      lastModifiedAt: now,
+      isLocked: false,
+      lockedBy: null,
+      ...shapeData
+    }));
+
+    // Use batch write for atomic creation
+    const batch = writeBatch(db);
+    
+    // Get current document to append shapes
+    const docSnap = await getDoc(canvasRef);
+    if (!docSnap.exists()) {
+      // Initialize canvas if it doesn't exist
+      await initializeCanvas(projectId);
+    }
+    
+    // Get current shapes
+    const currentData = docSnap.exists() ? docSnap.data() : { shapes: [] };
+    const currentShapes = currentData.shapes || [];
+    
+    // Add all new shapes to the existing array
+    const updatedShapes = [...currentShapes, ...shapesWithMetadata];
+    
+    batch.update(canvasRef, {
+      shapes: updatedShapes,
+      lastUpdated: serverTimestamp()
+    });
+    
+    await batch.commit();
+    
+    console.log('✅ Batch shape creation completed atomically:', shapesWithMetadata.length, 'shapes');
+    return shapesWithMetadata;
+  } catch (error) {
+    console.error('❌ Error batch creating shapes:', error);
+    throw error;
+  }
+}
+
+/**
+ * Batch delete multiple shapes atomically
+ * @param {string} projectId - Project ID (used as canvas document ID)
+ * @param {Array} shapeIds - Array of shape IDs to delete
+ */
+export async function batchDeleteShapes(projectId, shapeIds) {
+  if (!hasFirebaseConfig || !db) {
+    console.log('🎨 Development mode: Skipping batch shape deletion in Firestore');
+    return;
+  }
+
+  if (!shapeIds || shapeIds.length === 0) {
+    console.warn('⚠️ No shape IDs provided for batch deletion');
+    return;
+  }
+
+  try {
+    const canvasRef = doc(db, CANVAS_COLLECTION, projectId);
+    
+    // Get current document to find shapes to remove
+    const docSnap = await getDoc(canvasRef);
+    if (!docSnap.exists()) {
+      throw new Error(`Canvas ${projectId} does not exist`);
+    }
+    
+    const data = docSnap.data();
+    const currentShapes = data.shapes || [];
+    
+    // Create a set of IDs to delete for quick lookup
+    const idsToDelete = new Set(shapeIds);
+    
+    // Filter out shapes that should be deleted
+    const remainingShapes = currentShapes.filter(shape => !idsToDelete.has(shape.id));
+    
+    // Use batch write for atomic deletion
+    const batch = writeBatch(db);
+    batch.update(canvasRef, {
+      shapes: remainingShapes,
+      lastUpdated: serverTimestamp()
+    });
+    
+    await batch.commit();
+    
+    console.log('✅ Batch shape deletion completed atomically:', shapeIds.length, 'shapes deleted');
+  } catch (error) {
+    console.error('❌ Error batch deleting shapes:', error);
+    throw error;
+  }
+}
+
+/**
  * Batch update multiple shapes atomically
  * @param {string} projectId - Project ID (used as canvas document ID)
  * @param {Array} updates - Array of shape updates [{id, x, y, lastModified, lastModifiedBy}, ...]

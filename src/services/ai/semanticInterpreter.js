@@ -81,10 +81,10 @@ INTERPRETATION RULES:
 
 1. COORDINATE SYNONYMS:
    - "at point 0,0", "at coordinates 0,0", "at location 0,0" → x: 0, y: 0
-   - "center", "middle", "centered" → x: 0, y: 0 (origin)
+   - "center", "middle", "centered" → x: "viewport", y: "viewport" (viewport center)
    - "origin" → x: 0, y: 0
    - "near coordinates 100,200" → x: 100, y: 200
-   - If no position specified → x: 0, y: 0 (origin)
+   - If no position specified → x: "viewport", y: "viewport" (viewport center)
 
 2. ACTION SYNONYMS:
    - "create", "draw", "add", "make", "generate" → createShape
@@ -121,7 +121,7 @@ INTERPRETATION RULES:
    - "card layout" → createCardLayout
 
 DEFAULT VALUES:
-- If no coordinates: x: 0, y: 0 (origin)
+- If no coordinates: x: "viewport", y: "viewport" (viewport center)
 - If no size: width: 200, height: 100
 - If no color: fill: "blue"
 - If no shape type: "rectangle"

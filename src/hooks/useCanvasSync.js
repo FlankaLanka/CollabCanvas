@@ -4,6 +4,8 @@ import {
   createShape as createShapeInFirestore,
   updateShape as updateShapeInFirestore,
   deleteShape as deleteShapeInFirestore,
+  batchCreateShapes,
+  batchDeleteShapes,
   batchUpdateShapes,
   lockShape,
   unlockShape,
@@ -221,6 +223,75 @@ export function useCanvasSync(projectId) {
     };
   }, [shapes.length, syncStatus]);
 
+  // Batch create multiple shapes atomically
+  const createShapesBatch = useCallback(async (shapesData) => {
+    const operationId = `batch-create-${Date.now()}`;
+    
+    try {
+      pendingOperations.current.add(operationId);
+      
+      // Optimistically add shapes locally
+      const tempShapes = shapesData.map(shapeData => ({
+        ...shapeData,
+        id: shapeData.id || `shape-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`,
+        createdBy: getCurrentUser()?.uid || 'anonymous',
+        createdAt: new Date(),
+        lastModifiedBy: getCurrentUser()?.uid || 'anonymous',
+        lastModifiedAt: new Date(),
+        isLocked: false,
+        lockedBy: null
+      }));
+      
+      setShapes(prevShapes => [...prevShapes, ...tempShapes]);
+      
+      // Sync to Firestore using batch creation
+      await batchCreateShapes(projectId, tempShapes);
+      
+      console.log('✅ Batch shapes created and synced:', tempShapes.length, 'shapes');
+      return tempShapes;
+      
+    } catch (error) {
+      console.error('❌ Error batch creating shapes:', error);
+      
+      // Remove optimistically added shapes on error
+      setShapes(prevShapes => 
+        prevShapes.filter(shape => !shapesData.some(data => data.id === shape.id))
+      );
+      
+      throw error;
+    } finally {
+      pendingOperations.current.delete(operationId);
+    }
+  }, [projectId]);
+
+  // Batch delete multiple shapes atomically
+  const deleteShapesBatch = useCallback(async (shapeIds) => {
+    const operationId = `batch-delete-${Date.now()}`;
+    
+    try {
+      pendingOperations.current.add(operationId);
+      
+      // Optimistically remove shapes locally
+      setShapes(prevShapes => 
+        prevShapes.filter(shape => !shapeIds.includes(shape.id))
+      );
+      
+      // Sync to Firestore using batch deletion
+      await batchDeleteShapes(projectId, shapeIds);
+      
+      console.log('✅ Batch shapes deleted and synced:', shapeIds.length, 'shapes');
+      
+    } catch (error) {
+      console.error('❌ Error batch deleting shapes:', error);
+      
+      // Revert optimistic deletion on error
+      // In a production app, you might want to reload from Firestore
+      throw error;
+    } finally {
+      pendingOperations.current.delete(operationId);
+    }
+  }, [projectId]);
+
   // Batch update multiple shapes atomically
   const updateShapesBatch = useCallback(async (updates) => {
     const operationId = `batch-update-${Date.now()}`;
@@ -283,8 +354,10 @@ export function useCanvasSync(projectId) {
     
     // Shape operations
     createShape,
+    createShapesBatch,
     updateShape,
     deleteShape,
+    deleteShapesBatch,
     updateShapesBatch,
     
     // Collaboration features

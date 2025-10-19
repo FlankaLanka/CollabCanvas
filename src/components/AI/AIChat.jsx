@@ -76,25 +76,27 @@ function AIChat({ onClose }) {
 
   // Example commands for user guidance
   const exampleCommands = [
-    // Creation Commands (at least 2 required)
+    // Creation Commands
     "Create a red circle at position 100, 200",
     "Add a text layer that says 'Hello World'",
     "Make a 200x300 rectangle",
     
-    // Manipulation Commands (at least 2 required)
-    "Move the blue rectangle to the center",
+    // Manipulation Commands
+    "Move the circle to the center",
     "Resize the circle to be twice as big",
     "Rotate the text 45 degrees",
     
-    // Layout Commands (at least 1 required)
-    "Arrange these shapes in a horizontal row",
+    // Layout Commands
     "Create a grid of 3x3 squares",
-    "Space these elements evenly",
+    "Arrange these shapes in a horizontal row",
+    "Create 500 circles",
+
+    //"Space these elements evenly",
     
-    // Complex Commands (at least 1 required)
-    "Create a login form with username and password fields",
-    "Build a navigation bar with 4 menu items",
-    "Make a card layout with title, image, and description"
+    // Complex Commands
+    "Create a login form",
+    "Build a navigation bar with menu items",
+    "Make a card layout"
   ];
 
   // Get AI status for performance display
@@ -130,7 +132,7 @@ function AIChat({ onClose }) {
     <div className="flex flex-col">
       {/* Chat Interface */}
       {isExpanded && (
-        <div className="bg-white border-t border-gray-200 flex flex-col h-full">
+        <div className="bg-white border-t border-gray-200 flex flex-col h-96">
           {/* Header */}
           <div className="flex items-center justify-between p-3 border-b border-gray-200">
             <div className="flex items-center">
@@ -167,7 +169,14 @@ function AIChat({ onClose }) {
           </div>
 
           {/* Messages */}
-          <div className="flex-1 p-3 overflow-y-auto min-h-0" ref={messagesEndRef}>
+          <div 
+            className="flex-1 p-3 overflow-y-auto min-h-0" 
+            style={{
+              scrollbarWidth: 'thin',
+              scrollbarColor: '#d1d5db #f3f4f6'
+            }}
+            ref={messagesEndRef}
+          >
             {conversation.length === 0 && (
               <div className="text-center text-gray-500 py-8">
                 <svg className="w-8 h-8 mx-auto mb-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">

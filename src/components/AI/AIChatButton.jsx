@@ -33,10 +33,10 @@ function AIChatButton() {
         </svg>
       </button>
 
-      {/* AI Chat Modal */}
+      {/* AI Chat Panel - Non-modal floating panel */}
       {isOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-end justify-end z-50 p-4 pb-6">
-          <div className="bg-white rounded-t-lg shadow-2xl w-full max-w-md max-h-[calc(100vh-3rem)] flex flex-col">
+        <div className="fixed bottom-6 right-6 z-50 w-96 max-h-[calc(100vh-3rem)] flex flex-col">
+          <div className="bg-white rounded-lg shadow-2xl w-full max-h-[calc(100vh-3rem)] flex flex-col border border-gray-200">
             {/* Header */}
             <div className="flex items-center justify-between p-4 border-b border-gray-200">
               <div className="flex items-center space-x-2">

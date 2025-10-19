@@ -24,6 +24,25 @@ function ShapeTransformer() {
   const transformerRef = useRef();
   const isTransforming = useRef(false);
 
+  // Cleanup transformer when shapes are deleted
+  useEffect(() => {
+    const transformer = transformerRef.current;
+    if (!transformer) return;
+
+    // Check if any of the transformer's nodes are no longer valid
+    const nodes = transformer.nodes();
+    const validNodes = nodes.filter(node => 
+      node && node.getStage() && node.getParent()
+    );
+
+    // If some nodes became invalid, update the transformer
+    if (validNodes.length !== nodes.length) {
+      console.log('🧹 Cleaning up transformer - removing invalid nodes');
+      transformer.nodes(validNodes);
+      transformer.getLayer()?.batchDraw();
+    }
+  }, [selectedIds]); // Re-run when selection changes
+
   // Update transformer when selection changes
   useEffect(() => {
     const transformer = transformerRef.current;
@@ -41,7 +60,7 @@ function ShapeTransformer() {
     const selectedNodes = [];
     selectedIds.forEach(shapeId => {
       const node = stage.findOne(`#${shapeId}`);
-      if (node) {
+      if (node && node.getStage()) { // Additional check: ensure node is still attached to stage
         selectedNodes.push(node);
       }
     });
@@ -51,7 +70,7 @@ function ShapeTransformer() {
       transformer.nodes(selectedNodes);
       transformer.getLayer()?.batchDraw();
     } else {
-      // No valid nodes found
+      // No valid nodes found - clear transformer
       transformer.nodes([]);
     }
   }, [selectedIds, stageRef]);
@@ -88,6 +107,12 @@ function ShapeTransformer() {
     for (const node of nodes) {
       const shapeId = node.id();
       if (!shapeId) continue;
+
+      // CRITICAL: Check if node is still valid and attached to stage
+      if (!node.getStage() || !node.getParent()) {
+        console.warn('⚠️ Skipping transform for detached node:', shapeId);
+        continue;
+      }
 
       try {
         // Get current transform properties
@@ -182,7 +207,7 @@ function ShapeTransformer() {
       const updatedNodes = [];
       selectedIds.forEach(shapeId => {
         const node = stage.findOne(`#${shapeId}`);
-        if (node) {
+        if (node && node.getStage()) { // Additional safety check
           updatedNodes.push(node);
         }
       });

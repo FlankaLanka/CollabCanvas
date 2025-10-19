@@ -77,8 +77,10 @@ export function CanvasProvider({ children, projectId }) {
     syncStatus: firebaseSyncStatus,
     loading: firebaseSyncLoading,
     createShape: createSyncedShape,
+    createShapesBatch: createSyncedShapesBatch,
     updateShape: updateSyncedShape,
     deleteShape: deleteSyncedShape,
+    deleteShapesBatch: deleteSyncedShapesBatch,
     updateShapesBatch
   } = useCanvasSync(projectId);
 
@@ -951,6 +953,66 @@ export function CanvasProvider({ children, projectId }) {
   }, [store, updateShape]);
 
   /**
+   * Batch create multiple shapes with database sync
+   */
+  const createShapesBatch = useCallback(async (shapesData) => {
+    try {
+      console.log(`🔄 Batch creating ${shapesData.length} shapes...`);
+      
+      // Add all shapes to store immediately for responsive UI
+      shapesData.forEach(shapeData => {
+        store.shapes.set(shapeData.id, shapeData);
+      });
+      triggerUpdate(); // Force React re-render
+      
+      // Sync to database using batch creation
+      await createSyncedShapesBatch(shapesData);
+      
+      console.log('✅ Batch shapes created and synced to database:', shapesData.length, 'shapes');
+      return shapesData;
+      
+    } catch (error) {
+      console.error('❌ Error batch creating shapes:', error);
+      
+      // Remove from store on error
+      shapesData.forEach(shapeData => {
+        store.shapes.delete(shapeData.id);
+      });
+      triggerUpdate(); // Re-render after cleanup
+      
+      throw error;
+    }
+  }, [store, createSyncedShapesBatch, triggerUpdate]);
+
+  /**
+   * Batch delete multiple shapes with database sync
+   */
+  const deleteShapesBatch = useCallback(async (shapeIds) => {
+    try {
+      console.log(`🔄 Batch deleting ${shapeIds.length} shapes...`);
+      
+      // Remove all shapes from store immediately for responsive UI
+      shapeIds.forEach(id => {
+        store.shapes.delete(id);
+        store.selectedIds.delete(id);
+      });
+      triggerUpdate(); // Force React re-render
+      
+      // Sync to database using batch deletion
+      await deleteSyncedShapesBatch(shapeIds);
+      
+      console.log('✅ Batch shapes deleted and synced to database:', shapeIds.length, 'shapes');
+      
+    } catch (error) {
+      console.error('❌ Error batch deleting shapes:', error);
+      
+      // On error, we can't easily restore the shapes without reloading from database
+      // In a production app, you might want to reload from Firestore
+      throw error;
+    }
+  }, [store, deleteSyncedShapesBatch, triggerUpdate]);
+
+  /**
    * Delete shape with database sync
    */
   const deleteShape = useCallback(async (id) => {
@@ -977,22 +1039,19 @@ export function CanvasProvider({ children, projectId }) {
     if (selectedIds.length === 0) return;
     
     try {
-      // Remove from store immediately
-      selectedIds.forEach(id => {
-        store.shapes.delete(id);
-        store.selectedIds.delete(id);
-      });
-      triggerUpdate(); // Force React re-render
+      console.log(`🗑️ Batch deleting ${selectedIds.length} selected shapes...`);
       
-      // Sync to database
-      const deletePromises = selectedIds.map(id => deleteSyncedShape(id));
-      await Promise.all(deletePromises);
+      // Use batch deletion for better performance
+      const shapeIdsToDelete = Array.from(selectedIds);
+      await deleteShapesBatch(shapeIdsToDelete);
       
-      console.log('🗑️ Deleted from database:', selectedIds.length, 'shapes');
+      console.log('✅ Selected shapes batch deleted:', shapeIdsToDelete.length, 'shapes');
+      
     } catch (error) {
-      console.error('❌ Error deleting selected shapes:', error);
+      console.error('❌ Error batch deleting selected shapes:', error);
+      throw error;
     }
-  }, [selectedIds, store, deleteSyncedShape, triggerUpdate]);
+  }, [selectedIds, deleteShapesBatch]);
 
   /**
    * Delete all shapes with database sync
@@ -1001,20 +1060,19 @@ export function CanvasProvider({ children, projectId }) {
     if (shapes.length === 0) return;
     
     try {
-      // Clear store immediately
-      store.shapes.clear();
-      store.selectedIds.clear();
-      triggerUpdate(); // Force React re-render
+      console.log(`🗑️ Batch deleting all ${shapes.length} shapes...`);
       
-      // Sync to database
-      const deletePromises = shapes.map(shape => deleteSyncedShape(shape.id));
-      await Promise.all(deletePromises);
+      // Use batch deletion for better performance
+      const allShapeIds = shapes.map(shape => shape.id);
+      await deleteShapesBatch(allShapeIds);
       
-      console.log('🗑️ Deleted all shapes from database:', shapes.length);
+      console.log('✅ All shapes batch deleted:', allShapeIds.length, 'shapes');
+      
     } catch (error) {
-      console.error('❌ Error deleting all shapes:', error);
+      console.error('❌ Error batch deleting all shapes:', error);
+      throw error;
     }
-  }, [shapes, store, deleteSyncedShape, triggerUpdate]);
+  }, [shapes, deleteShapesBatch]);
 
   /**
    * Get next color for shapes
@@ -1179,8 +1237,10 @@ export function CanvasProvider({ children, projectId }) {
     
     // Shape management
     addShape,
+    createShapesBatch,
     updateShape,
     deleteShape,
+    deleteShapesBatch,
     deleteSelectedShapes,
     deleteAllShapes,
     
