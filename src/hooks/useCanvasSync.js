@@ -7,8 +7,7 @@ import {
   batchUpdateShapes,
   lockShape,
   unlockShape,
-  getCanvasState,
-  GLOBAL_CANVAS_ID
+  getCanvasState
 } from '../services/canvas';
 import { getCurrentUser } from '../services/auth';
 
@@ -16,7 +15,7 @@ import { getCurrentUser } from '../services/auth';
  * Custom hook for real-time canvas synchronization
  * Manages local state and sync with Firestore
  */
-export function useCanvasSync(canvasId = GLOBAL_CANVAS_ID) {
+export function useCanvasSync(projectId) {
   const [shapes, setShapes] = useState([]);
   const [syncStatus, setSyncStatus] = useState('connecting'); // 'connecting', 'connected', 'error', 'offline'
   const [loading, setLoading] = useState(true);
@@ -33,11 +32,18 @@ export function useCanvasSync(canvasId = GLOBAL_CANVAS_ID) {
 
   // Set up Firestore subscription
   useEffect(() => {
-    console.log('🚀 Setting up canvas sync for:', canvasId);
+    if (!projectId) {
+      console.log('⚠️ No projectId provided to useCanvasSync');
+      setLoading(false);
+      setSyncStatus('error');
+      return;
+    }
+
+    console.log('🚀 Setting up canvas sync for:', projectId);
     
     try {
       // Subscribe to real-time updates
-      const unsubscribe = subscribeToShapes(canvasId, handleShapesUpdate);
+      const unsubscribe = subscribeToShapes(projectId, handleShapesUpdate);
       unsubscribeRef.current = unsubscribe;
       
       // Handle connection status
@@ -56,7 +62,7 @@ export function useCanvasSync(canvasId = GLOBAL_CANVAS_ID) {
         unsubscribeRef.current();
       }
     };
-  }, [canvasId, handleShapesUpdate]);
+  }, [projectId, handleShapesUpdate]);
 
   // Create shape with Firestore sync
   const createShape = useCallback(async (shapeData) => {
@@ -80,7 +86,7 @@ export function useCanvasSync(canvasId = GLOBAL_CANVAS_ID) {
       setShapes(prevShapes => [...prevShapes, tempShape]);
       
       // Sync to Firestore
-      await createShapeInFirestore(canvasId, tempShape);
+      await createShapeInFirestore(projectId, tempShape);
       
       console.log('✅ Shape created and synced:', tempShape.id);
       return tempShape;
@@ -97,7 +103,7 @@ export function useCanvasSync(canvasId = GLOBAL_CANVAS_ID) {
     } finally {
       pendingOperations.current.delete(operationId);
     }
-  }, [canvasId]);
+  }, [projectId]);
 
   // Update shape with Firestore sync
   const updateShape = useCallback(async (shapeId, updates) => {
@@ -121,7 +127,7 @@ export function useCanvasSync(canvasId = GLOBAL_CANVAS_ID) {
       );
       
       // Sync to Firestore
-      await updateShapeInFirestore(canvasId, shapeId, updates);
+      await updateShapeInFirestore(projectId, shapeId, updates);
       
       console.log('✅ Shape updated and synced:', shapeId);
       
@@ -134,7 +140,7 @@ export function useCanvasSync(canvasId = GLOBAL_CANVAS_ID) {
     } finally {
       pendingOperations.current.delete(operationId);
     }
-  }, [canvasId]);
+  }, [projectId]);
 
   // Delete shape with Firestore sync  
   const deleteShape = useCallback(async (shapeId) => {
@@ -152,7 +158,7 @@ export function useCanvasSync(canvasId = GLOBAL_CANVAS_ID) {
       );
       
       // Sync to Firestore
-      await deleteShapeInFirestore(canvasId, shapeId);
+      await deleteShapeInFirestore(projectId, shapeId);
       
       console.log('✅ Shape deleted and synced:', shapeId);
       
@@ -169,29 +175,29 @@ export function useCanvasSync(canvasId = GLOBAL_CANVAS_ID) {
     } finally {
       pendingOperations.current.delete(operationId);
     }
-  }, [canvasId, shapes]);
+  }, [projectId, shapes]);
 
   // Lock shape for collaborative editing
   const lockShapeForEditing = useCallback(async (shapeId) => {
     try {
-      await lockShape(canvasId, shapeId);
+      await lockShape(projectId, shapeId);
       console.log('🔒 Shape locked for editing:', shapeId);
     } catch (error) {
       console.error('❌ Error locking shape:', error);
       throw error;
     }
-  }, [canvasId]);
+  }, [projectId]);
 
   // Unlock shape after editing
   const unlockShapeAfterEditing = useCallback(async (shapeId) => {
     try {
-      await unlockShape(canvasId, shapeId);
+      await unlockShape(projectId, shapeId);
       console.log('🔓 Shape unlocked after editing:', shapeId);
     } catch (error) {
       console.error('❌ Error unlocking shape:', error);
       throw error;
     }
-  }, [canvasId]);
+  }, [projectId]);
 
   // Check if shape is locked by current user
   const isShapeLockedByCurrentUser = useCallback((shape) => {
@@ -240,7 +246,7 @@ export function useCanvasSync(canvasId = GLOBAL_CANVAS_ID) {
       );
       
       // Sync to Firestore using batch update
-      await batchUpdateShapes(canvasId, updates);
+      await batchUpdateShapes(projectId, updates);
       
       console.log('✅ Batch shape updates completed atomically:', updates.length, 'shapes');
       
@@ -253,13 +259,13 @@ export function useCanvasSync(canvasId = GLOBAL_CANVAS_ID) {
     } finally {
       pendingOperations.current.delete(operationId);
     }
-  }, [canvasId]);
+  }, [projectId]);
 
   // Force refresh from Firestore
   const refreshCanvas = useCallback(async () => {
     try {
       setLoading(true);
-      const freshShapes = await getCanvasState(canvasId);
+      const freshShapes = await getCanvasState(projectId);
       setShapes(freshShapes);
       console.log('🔄 Canvas refreshed from Firestore');
     } catch (error) {
@@ -267,7 +273,7 @@ export function useCanvasSync(canvasId = GLOBAL_CANVAS_ID) {
     } finally {
       setLoading(false);
     }
-  }, [canvasId]);
+  }, [projectId]);
 
   return {
     // State

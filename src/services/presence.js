@@ -15,10 +15,11 @@ export const PRESENCE_PATH = 'presence';
 export const SESSION_ID = 'main';
 
 /**
- * Set user online status
+ * Set user online status for a specific project
  * @param {boolean} isOnline - Whether user is online
+ * @param {string} projectId - Project ID
  */
-export async function setUserOnline(isOnline = true) {
+export async function setUserOnline(isOnline = true, projectId) {
   if (!hasFirebaseConfig || !rtdb) {
     console.log('🎨 Development mode: Skipping presence update');
     return;
@@ -31,7 +32,7 @@ export async function setUserOnline(isOnline = true) {
   }
 
   try {
-    const userPresenceRef = ref(rtdb, `${PRESENCE_PATH}/${SESSION_ID}/${currentUser.uid}`);
+    const userPresenceRef = ref(rtdb, `canvases/${projectId}/presence/${currentUser.uid}`);
     
     if (isOnline) {
       const userData = {
@@ -61,18 +62,19 @@ export async function setUserOnline(isOnline = true) {
 }
 
 /**
- * Subscribe to online users
+ * Subscribe to online users for a specific project
+ * @param {string} projectId - Project ID
  * @param {Function} callback - Callback with users array
  * @returns {Function} Unsubscribe function
  */
-export function subscribeToOnlineUsers(callback) {
+export function subscribeToOnlineUsers(projectId, callback) {
   if (!hasFirebaseConfig || !rtdb) {
     console.log('🎨 Development mode: No presence tracking');
     callback([]);
     return () => {};
   }
 
-  const presenceRef = ref(rtdb, `${PRESENCE_PATH}/${SESSION_ID}`);
+  const presenceRef = ref(rtdb, `canvases/${projectId}/presence`);
   console.log('👥 Starting presence subscription...');
 
   const unsubscribe = onValue(presenceRef, (snapshot) => {
@@ -109,20 +111,21 @@ export function subscribeToOnlineUsers(callback) {
 }
 
 /**
- * Update user cursor position  
+ * Update user cursor position for a specific project
+ * @param {string} projectId - Project ID
  * @param {number} x - Screen X position
  * @param {number} y - Screen Y position
  * @param {number} canvasX - Canvas X position
  * @param {number} canvasY - Canvas Y position
  */
-export async function updateUserCursor(x, y, canvasX, canvasY) {
+export async function updateUserCursor(projectId, x, y, canvasX, canvasY) {
   if (!hasFirebaseConfig || !rtdb) return;
 
   const currentUser = getCurrentUser();
   if (!currentUser) return;
 
   try {
-    const cursorRef = ref(rtdb, `cursors/${SESSION_ID}/${currentUser.uid}`);
+    const cursorRef = ref(rtdb, `canvases/${projectId}/realtime/cursors/${currentUser.uid}`);
     
     await set(cursorRef, {
       x,
@@ -143,17 +146,18 @@ export async function updateUserCursor(x, y, canvasX, canvasY) {
 }
 
 /**
- * Subscribe to user cursors
+ * Subscribe to user cursors for a specific project
+ * @param {string} projectId - Project ID
  * @param {Function} callback - Callback with cursors array
  * @returns {Function} Unsubscribe function
  */
-export function subscribeToUserCursors(callback) {
+export function subscribeToUserCursors(projectId, callback) {
   if (!hasFirebaseConfig || !rtdb) {
     callback([]);
     return () => {};
   }
 
-  const cursorsRef = ref(rtdb, `cursors/${SESSION_ID}`);
+  const cursorsRef = ref(rtdb, `canvases/${projectId}/realtime/cursors`);
   
   const unsubscribe = onValue(cursorsRef, (snapshot) => {
     const cursorsData = snapshot.val();
@@ -214,10 +218,10 @@ function getUserColor(uid) {
 let lastCursorUpdate = 0;
 const CURSOR_THROTTLE = 33; // 30fps for smooth movement
 
-export function throttledUpdateUserCursor(x, y, canvasX, canvasY) {
+export function throttledUpdateUserCursor(projectId, x, y, canvasX, canvasY) {
   const now = Date.now();
   if (now - lastCursorUpdate >= CURSOR_THROTTLE) {
     lastCursorUpdate = now;
-    updateUserCursor(x, y, canvasX, canvasY);
+    updateUserCursor(projectId, x, y, canvasX, canvasY);
   }
 }

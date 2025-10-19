@@ -25,7 +25,7 @@ export function useCanvas() {
   return context;
 }
 
-export function CanvasProvider({ children }) {
+export function CanvasProvider({ children, projectId }) {
   // SIMPLIFIED: Get the store instance directly for immediate functionality
   const store = useCanvasStore();
   
@@ -80,7 +80,7 @@ export function CanvasProvider({ children }) {
     updateShape: updateSyncedShape,
     deleteShape: deleteSyncedShape,
     updateShapesBatch
-  } = useCanvasSync();
+  } = useCanvasSync(projectId);
 
   const stageRef = useRef(null);
 

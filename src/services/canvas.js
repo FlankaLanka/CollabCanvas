@@ -3,6 +3,7 @@ import {
   onSnapshot,
   setDoc,
   updateDoc,
+  deleteDoc,
   arrayUnion,
   arrayRemove,
   serverTimestamp,
@@ -14,15 +15,14 @@ import { getCurrentUser } from './auth';
 
 // Canvas collection and document constants
 export const CANVAS_COLLECTION = 'canvas';
-export const GLOBAL_CANVAS_ID = 'global-canvas-v1';
 
 /**
  * Subscribe to real-time shape changes
- * @param {string} canvasId - Canvas document ID
+ * @param {string} projectId - Project ID (used as canvas document ID)
  * @param {Function} callback - Callback function to handle shape updates
  * @returns {Function} Unsubscribe function
  */
-export function subscribeToShapes(canvasId = GLOBAL_CANVAS_ID, callback) {
+export function subscribeToShapes(projectId, callback) {
   if (!hasFirebaseConfig || !db) {
     console.log('🎨 Development mode: Skipping Firestore subscription');
     // Return empty unsubscribe function for development mode
@@ -30,9 +30,9 @@ export function subscribeToShapes(canvasId = GLOBAL_CANVAS_ID, callback) {
   }
 
   try {
-    const canvasRef = doc(db, CANVAS_COLLECTION, canvasId);
+    const canvasRef = doc(db, CANVAS_COLLECTION, projectId);
     
-    console.log('🔄 Subscribing to canvas changes:', canvasId);
+    console.log('🔄 Subscribing to canvas changes:', projectId);
     
     const unsubscribe = onSnapshot(canvasRef, (doc) => {
       if (doc.exists()) {
@@ -42,7 +42,7 @@ export function subscribeToShapes(canvasId = GLOBAL_CANVAS_ID, callback) {
       } else {
         console.log('📄 Canvas document does not exist, initializing...');
         // Initialize empty canvas if it doesn't exist
-        initializeCanvas(canvasId).then(() => {
+        initializeCanvas(projectId).then(() => {
           callback([]);
         });
       }
@@ -61,20 +61,20 @@ export function subscribeToShapes(canvasId = GLOBAL_CANVAS_ID, callback) {
 
 /**
  * Initialize an empty canvas document
- * @param {string} canvasId - Canvas document ID
+ * @param {string} projectId - Project ID (used as canvas document ID)
  */
-export async function initializeCanvas(canvasId = GLOBAL_CANVAS_ID) {
+export async function initializeCanvas(projectId) {
   if (!hasFirebaseConfig || !db) {
     console.log('🎨 Development mode: Skipping canvas initialization');
     return;
   }
 
   try {
-    const canvasRef = doc(db, CANVAS_COLLECTION, canvasId);
+    const canvasRef = doc(db, CANVAS_COLLECTION, projectId);
     const currentUser = getCurrentUser();
     
     await setDoc(canvasRef, {
-      canvasId,
+      projectId,
       shapes: [],
       createdAt: serverTimestamp(),
       createdBy: currentUser?.uid || 'anonymous',
@@ -82,7 +82,7 @@ export async function initializeCanvas(canvasId = GLOBAL_CANVAS_ID) {
       version: 1
     });
     
-    console.log('✅ Canvas initialized:', canvasId);
+    console.log('✅ Canvas initialized:', projectId);
   } catch (error) {
     console.error('❌ Error initializing canvas:', error);
     throw error;
@@ -91,17 +91,17 @@ export async function initializeCanvas(canvasId = GLOBAL_CANVAS_ID) {
 
 /**
  * Create a new shape on the canvas
- * @param {string} canvasId - Canvas document ID
+ * @param {string} projectId - Project ID (used as canvas document ID)
  * @param {Object} shapeData - Shape properties
  */
-export async function createShape(canvasId = GLOBAL_CANVAS_ID, shapeData) {
+export async function createShape(projectId, shapeData) {
   if (!hasFirebaseConfig || !db) {
     console.log('🎨 Development mode: Skipping shape creation in Firestore');
     return shapeData; // Return the shape data for local use
   }
 
   try {
-    const canvasRef = doc(db, CANVAS_COLLECTION, canvasId);
+    const canvasRef = doc(db, CANVAS_COLLECTION, projectId);
     const currentUser = getCurrentUser();
     const now = new Date();
     
@@ -143,24 +143,24 @@ export async function createShape(canvasId = GLOBAL_CANVAS_ID, shapeData) {
 
 /**
  * Update an existing shape on the canvas
- * @param {string} canvasId - Canvas document ID
+ * @param {string} projectId - Project ID (used as canvas document ID)
  * @param {string} shapeId - Shape ID to update
  * @param {Object} updates - Properties to update
  */
-export async function updateShape(canvasId = GLOBAL_CANVAS_ID, shapeId, updates) {
+export async function updateShape(projectId, shapeId, updates) {
   if (!hasFirebaseConfig || !db) {
     console.log('🎨 Development mode: Skipping shape update in Firestore');
     return;
   }
 
   try {
-    const canvasRef = doc(db, CANVAS_COLLECTION, canvasId);
+    const canvasRef = doc(db, CANVAS_COLLECTION, projectId);
     const currentUser = getCurrentUser();
     
     // Get current document to find and update the specific shape
     const docSnap = await getDoc(canvasRef);
     if (!docSnap.exists()) {
-      throw new Error(`Canvas ${canvasId} does not exist`);
+      throw new Error(`Canvas ${projectId} does not exist`);
     }
     
     const data = docSnap.data();
@@ -194,22 +194,22 @@ export async function updateShape(canvasId = GLOBAL_CANVAS_ID, shapeId, updates)
 
 /**
  * Delete a shape from the canvas
- * @param {string} canvasId - Canvas document ID 
+ * @param {string} projectId - Project ID (used as canvas document ID)
  * @param {string} shapeId - Shape ID to delete
  */
-export async function deleteShape(canvasId = GLOBAL_CANVAS_ID, shapeId) {
+export async function deleteShape(projectId, shapeId) {
   if (!hasFirebaseConfig || !db) {
     console.log('🎨 Development mode: Skipping shape deletion in Firestore');
     return;
   }
 
   try {
-    const canvasRef = doc(db, CANVAS_COLLECTION, canvasId);
+    const canvasRef = doc(db, CANVAS_COLLECTION, projectId);
     
     // Get current document to find the shape to remove
     const docSnap = await getDoc(canvasRef);
     if (!docSnap.exists()) {
-      throw new Error(`Canvas ${canvasId} does not exist`);
+      throw new Error(`Canvas ${projectId} does not exist`);
     }
     
     const data = docSnap.data();
@@ -236,10 +236,10 @@ export async function deleteShape(canvasId = GLOBAL_CANVAS_ID, shapeId) {
 
 /**
  * Lock a shape for editing (prevents others from editing)
- * @param {string} canvasId - Canvas document ID
+ * @param {string} projectId - Project ID (used as canvas document ID)
  * @param {string} shapeId - Shape ID to lock  
  */
-export async function lockShape(canvasId = GLOBAL_CANVAS_ID, shapeId) {
+export async function lockShape(projectId, shapeId) {
   if (!hasFirebaseConfig || !db) {
     console.log('🎨 Development mode: Skipping shape locking');
     return;
@@ -251,7 +251,7 @@ export async function lockShape(canvasId = GLOBAL_CANVAS_ID, shapeId) {
       throw new Error('User must be authenticated to lock shapes');
     }
 
-    await updateShape(canvasId, shapeId, {
+    await updateShape(projectId, shapeId, {
       isLocked: true,
       lockedBy: currentUser.uid,
       lockedAt: new Date()
@@ -266,17 +266,17 @@ export async function lockShape(canvasId = GLOBAL_CANVAS_ID, shapeId) {
 
 /**
  * Unlock a shape (allows others to edit)
- * @param {string} canvasId - Canvas document ID
+ * @param {string} projectId - Project ID (used as canvas document ID)
  * @param {string} shapeId - Shape ID to unlock
  */
-export async function unlockShape(canvasId = GLOBAL_CANVAS_ID, shapeId) {
+export async function unlockShape(projectId, shapeId) {
   if (!hasFirebaseConfig || !db) {
     console.log('🎨 Development mode: Skipping shape unlocking');
     return;
   }
 
   try {
-    await updateShape(canvasId, shapeId, {
+    await updateShape(projectId, shapeId, {
       isLocked: false,
       lockedBy: null,
       lockedAt: null
@@ -291,10 +291,10 @@ export async function unlockShape(canvasId = GLOBAL_CANVAS_ID, shapeId) {
 
 /**
  * Batch update multiple shapes atomically
- * @param {string} canvasId - Canvas document ID
+ * @param {string} projectId - Project ID (used as canvas document ID)
  * @param {Array} updates - Array of shape updates [{id, x, y, lastModified, lastModifiedBy}, ...]
  */
-export async function batchUpdateShapes(canvasId = GLOBAL_CANVAS_ID, updates) {
+export async function batchUpdateShapes(projectId, updates) {
   if (!hasFirebaseConfig || !db) {
     console.log('🎨 Development mode: Skipping batch shape updates in Firestore');
     return;
@@ -307,12 +307,12 @@ export async function batchUpdateShapes(canvasId = GLOBAL_CANVAS_ID, updates) {
 
   try {
     const currentUser = getCurrentUser();
-    const canvasRef = doc(db, CANVAS_COLLECTION, canvasId);
+    const canvasRef = doc(db, CANVAS_COLLECTION, projectId);
     
     // Get current document to find and update the specific shapes
     const docSnap = await getDoc(canvasRef);
     if (!docSnap.exists()) {
-      throw new Error(`Canvas ${canvasId} does not exist`);
+      throw new Error(`Canvas ${projectId} does not exist`);
     }
     
     const data = docSnap.data();
@@ -356,18 +356,40 @@ export async function batchUpdateShapes(canvasId = GLOBAL_CANVAS_ID, updates) {
 }
 
 /**
+ * Delete all canvas data for a project
+ * @param {string} projectId - Project ID
+ * @returns {Promise<void>}
+ */
+export async function deleteProjectCanvas(projectId) {
+  if (!hasFirebaseConfig || !db) {
+    console.log('🎨 Development mode: Skipping canvas deletion');
+    return;
+  }
+
+  try {
+    const canvasRef = doc(db, CANVAS_COLLECTION, projectId);
+    await deleteDoc(canvasRef);
+    
+    console.log('✅ Project canvas deleted:', projectId);
+  } catch (error) {
+    console.error('❌ Error deleting project canvas:', error);
+    throw error;
+  }
+}
+
+/**
  * Get current canvas state
- * @param {string} canvasId - Canvas document ID
+ * @param {string} projectId - Project ID (used as canvas document ID)
  * @returns {Promise<Array>} Array of shapes
  */
-export async function getCanvasState(canvasId = GLOBAL_CANVAS_ID) {
+export async function getCanvasState(projectId) {
   if (!hasFirebaseConfig || !db) {
     console.log('🎨 Development mode: Returning empty canvas state');
     return [];
   }
 
   try {
-    const canvasRef = doc(db, CANVAS_COLLECTION, canvasId);
+    const canvasRef = doc(db, CANVAS_COLLECTION, projectId);
     const docSnap = await getDoc(canvasRef);
     
     if (docSnap.exists()) {
@@ -375,7 +397,7 @@ export async function getCanvasState(canvasId = GLOBAL_CANVAS_ID) {
       return data.shapes || [];
     } else {
       console.log('📄 Canvas does not exist, initializing...');
-      await initializeCanvas(canvasId);
+      await initializeCanvas(projectId);
       return [];
     }
   } catch (error) {

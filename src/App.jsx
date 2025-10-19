@@ -1,67 +1,36 @@
 import { useState, useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import AuthProvider from './components/Auth/AuthProvider';
 import Login from './components/Auth/Login';
 import Signup from './components/Auth/Signup';
-import Navbar from './components/Layout/Navbar';
-import Toolbar from './components/Toolbar';
-import Inspector from './components/Canvas/Inspector';
-import AIChatButton from './components/AI/AIChatButton';
-import Canvas from './components/Canvas/Canvas';
-import CanvasControls from './components/Canvas/CanvasControls';
-import { CanvasProvider, useCanvas } from './contexts/ModernCanvasContext';
+import DashboardPage from './pages/DashboardPage';
+import CanvasPage from './pages/CanvasPage';
 import { useAuth } from './hooks/useAuth';
 import './index.css';
 
-// Canvas App component with keyboard shortcuts
-function CanvasApp() {
-  // Grid and snapping state
-  const [showGrid, setShowGrid] = useState(true);
-  const [snapToGrid, setSnapToGrid] = useState(false);
+// Protected Route component
+function ProtectedRoute({ children }) {
+  const { currentUser, loading } = useAuth();
 
-  // Handle keyboard shortcuts
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      // Keyboard shortcuts can be added here if needed
-      // Note: Backspace/Delete key deletion has been removed
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
-
-  return (
-    <div className="h-screen bg-gray-50 flex flex-col">
-      <Navbar />
-      
-      <main className="flex-1 flex overflow-hidden">
-        {/* Left Toolbar */}
-        <Toolbar 
-          showGrid={showGrid}
-          setShowGrid={setShowGrid}
-          snapToGrid={snapToGrid}
-          setSnapToGrid={setSnapToGrid}
-        />
-        
-        {/* Inspector Panel */}
-        <Inspector />
-        
-        {/* Main Canvas Area */}
-        <div className="flex-1 relative min-w-0">
-          <Canvas 
-            showGrid={showGrid}
-            snapToGrid={snapToGrid}
-          />
-          <CanvasControls />
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
         </div>
-      </main>
-      
-      {/* Floating AI Chat Button */}
-      <AIChatButton />
-    </div>
-  );
+      </div>
+    );
+  }
+
+  if (!currentUser) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return children;
 }
 
-// Main App component with authentication logic
+// Main App component with routing
 function AppContent() {
   const { currentUser, loading } = useAuth();
   const [authMode, setAuthMode] = useState('login'); // 'login' or 'signup'
@@ -91,11 +60,30 @@ function AppContent() {
     );
   }
 
-  // Show main app if user is authenticated (or in demo mode)
+  // Show main app with routing if user is authenticated
   return (
-    <CanvasProvider>
-      <CanvasApp />
-    </CanvasProvider>
+    <Router>
+      <Routes>
+        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        <Route 
+          path="/dashboard" 
+          element={
+            <ProtectedRoute>
+              <DashboardPage />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/project/:projectId" 
+          element={
+            <ProtectedRoute>
+              <CanvasPage />
+            </ProtectedRoute>
+          } 
+        />
+        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      </Routes>
+    </Router>
   );
 }
 

@@ -2549,19 +2549,44 @@ export class CanvasAPI {
     }
 
     const shapes = [];
+    const notFoundShapes = [];
+    
     for (const shapeId of shapeIds) {
       const shape = this.findShape(shapeId);
-      if (shape) shapes.push(shape);
+      if (shape) {
+        shapes.push(shape);
+      } else {
+        notFoundShapes.push(shapeId);
+        console.warn(`⚠️ Shape not found: ${shapeId}`);
+      }
     }
 
     if (shapes.length === 0) {
-      throw new Error('No valid shapes found for distribution');
+      throw new Error(`No valid shapes found for distribution. Not found: ${notFoundShapes.join(', ')}`);
+    }
+    
+    if (notFoundShapes.length > 0) {
+      console.warn(`⚠️ Some shapes not found, distributing ${shapes.length} available shapes: ${notFoundShapes.join(', ')}`);
     }
 
+    // Validate bounds object
+    if (!bounds || typeof bounds.width !== 'number' || typeof bounds.height !== 'number' || 
+        typeof bounds.x !== 'number' || typeof bounds.y !== 'number') {
+      console.error('❌ Invalid bounds object:', bounds);
+      throw new Error('Invalid bounds object provided to distributeEvenly');
+    }
+    
     // Calculate optimal spacing
     const totalShapes = shapes.length;
     const availableWidth = bounds.width;
     const availableHeight = bounds.height;
+    
+    console.log('🔧 Distribution parameters:', {
+      totalShapes,
+      availableWidth,
+      availableHeight,
+      bounds
+    });
     
     // Try to create a roughly square grid
     const cols = Math.ceil(Math.sqrt(totalShapes));

@@ -2298,7 +2298,25 @@ Alternative: Deploy to Vercel/Netlify to test AI features in production.`;
         return await this.canvasAPI.arrangeInGrid(parsedArgs.shapeIds, parsedArgs.rows, parsedArgs.cols, parsedArgs.startX || 0, parsedArgs.startY || 0, parsedArgs.spacingX || 50, parsedArgs.spacingY || 50);
         
       case 'distributeShapesEvenly':
-        return await this.canvasAPI.distributeEvenly(parsedArgs.shapeIds, parsedArgs.containerWidth, parsedArgs.direction || 'horizontal');
+        // Handle "these shapes" reference
+        let shapeIds = parsedArgs.shapeIds;
+        if (shapeIds && (shapeIds.includes('these') || shapeIds.includes('recent'))) {
+          const recentShapes = this.canvasAPI.resolveTheseShapes();
+          shapeIds = recentShapes.map(shape => shape.id);
+          console.log('🔗 Resolved "these shapes" to:', shapeIds.length, 'shapes');
+        }
+        
+        // Convert containerWidth to proper bounds object
+        const containerWidth = parsedArgs.containerWidth || 600;
+        const direction = parsedArgs.direction || 'horizontal';
+        
+        // Create bounds object based on direction
+        const bounds = direction === 'horizontal' 
+          ? { x: 100, y: 100, width: containerWidth, height: 200 }
+          : { x: 100, y: 100, width: 200, height: containerWidth };
+          
+        console.log('🔧 Distributing shapes:', shapeIds, 'with bounds:', bounds);
+        return await this.canvasAPI.distributeEvenly(shapeIds, bounds);
         
       case 'centerGroup':
         return await this.canvasAPI.centerGroup(parsedArgs.shapeIds, parsedArgs.centerX || 0, parsedArgs.centerY || 0);

@@ -10,8 +10,9 @@ import { getCurrentUser } from '../services/auth';
 
 /**
  * Simplified presence hook for real-time collaboration
+ * @param {string} projectId - Project ID to track presence for
  */
-export function usePresence() {
+export function usePresence(projectId) {
   const [onlineUsers, setOnlineUsers] = useState([]);
   const [userCursors, setUserCursors] = useState([]);
   const [isActive, setIsActive] = useState(false);
@@ -24,19 +25,19 @@ export function usePresence() {
   useEffect(() => {
     const currentUser = getCurrentUser();
     
-    if (!currentUser) {
-      console.log('👥 No user logged in, skipping presence setup');
+    if (!currentUser || !projectId) {
+      console.log('👥 No user logged in or no projectId, skipping presence setup');
       setLoading(false);
       return;
     }
 
-    console.log('👥 Initializing presence for:', currentUser.displayName || currentUser.email);
+    console.log('👥 Initializing presence for project:', projectId, 'user:', currentUser.displayName || currentUser.email);
     
-    // Set user online
-    setUserOnline(true)
+    // Set user online for this specific project
+    setUserOnline(true, projectId)
       .then(() => {
         setIsActive(true);
-        console.log('✅ User presence activated');
+        console.log('✅ User presence activated for project:', projectId);
       })
       .catch(error => {
         console.error('❌ Error activating presence:', error);
@@ -45,16 +46,16 @@ export function usePresence() {
         setLoading(false);
       });
 
-    // Subscribe to online users
-    const unsubscribeUsers = subscribeToOnlineUsers((users) => {
-      console.log('👥 Users update:', users);
+    // Subscribe to online users for this project
+    const unsubscribeUsers = subscribeToOnlineUsers(projectId, (users) => {
+      console.log('👥 Project users update:', users);
       setOnlineUsers(users);
     });
     presenceUnsubscribe.current = unsubscribeUsers;
 
-    // Subscribe to user cursors
-    const unsubscribeCursors = subscribeToUserCursors((cursors) => {
-      console.log('👆 Cursors update:', cursors.length, 'cursors');
+    // Subscribe to user cursors for this project
+    const unsubscribeCursors = subscribeToUserCursors(projectId, (cursors) => {
+      console.log('👆 Project cursors update:', cursors.length, 'cursors');
       setUserCursors(cursors);
     });
     cursorsUnsubscribe.current = unsubscribeCursors;
@@ -70,11 +71,11 @@ export function usePresence() {
         cursorsUnsubscribe.current();
       }
       
-      // Set user offline
-      setUserOnline(false).catch(console.error);
+      // Set user offline for this project
+      setUserOnline(false, projectId).catch(console.error);
       setIsActive(false);
     };
-  }, []);
+  }, [projectId]);
 
   // Update cursor position (throttled)
   const updateCursor = useCallback((x, y, canvasX, canvasY) => {

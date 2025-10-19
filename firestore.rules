@@ -1,0 +1,19 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Projects collection - simplified rules
+    match /projects/{projectId} {
+      allow read, write, create, update, delete: if request.auth != null;
+    }
+    
+    // Canvas collection - simplified rules for now
+    match /canvas/{projectId} {
+      allow read, write, delete: if request.auth != null;
+    }
+    
+    // Invitations collection - simplified rules
+    match /project_invitations/{invitationId} {
+      allow read, write, create, update, delete: if request.auth != null;
+    }
+  }
+}
