@@ -116,9 +116,6 @@ export default function ProjectCard({ project, onClick, onRefresh }) {
             <h3 className="text-lg font-semibold text-gray-900 truncate">
               {project.name}
             </h3>
-            <p className="text-sm text-gray-500 mt-1">
-              Updated {formatDate(project.updatedAt)}
-            </p>
           </div>
           
           {/* Options Menu */}
