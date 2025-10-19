@@ -1,70 +1,112 @@
 # CollabCanvas
 
-A real-time collaborative design tool built with React, Vite, and Firebase.
+A real-time collaborative design tool that enables multiple users to create, edit, and manipulate shapes on a shared canvas with AI-powered natural language commands.
+
+## 🎯 What is CollabCanvas?
+
+CollabCanvas is a professional-grade collaborative design tool that combines real-time multi-user editing with AI agent integration. Users can create shapes, manipulate objects, and collaborate in real-time while using natural language commands to automate complex design tasks.
+
+### Key Capabilities
+
+- **Real-time Collaboration**: Multiple users can edit simultaneously with live cursor tracking and presence awareness
+- **AI-Powered Design**: Natural language commands for creating complex layouts, forms, and UI components
+- **Professional Canvas**: Infinite workspace with smooth pan/zoom, multi-select, and advanced shape manipulation
+- **Shape System**: Five shape types (rectangles, circles, triangles, lines, text) with comprehensive property editing
+- **Multi-User Features**: Live cursors, presence indicators, and conflict-free collaborative editing
+- **Performance Optimized**: 60 FPS rendering, <100ms sync times, supports 500+ objects and 10+ concurrent users
 
 ## 🚀 Quick Start
 
+### Prerequisites
+
+- Node.js 18+ 
+- npm or yarn
+- Firebase project (for production)
+
+### Installation
+
+1. **Clone the repository**
+   ```bash
+   git clone <repository-url>
+   cd collabcanvas
+   ```
+
+2. **Install dependencies**
+   ```bash
+   npm install
+   ```
+
+3. **Set up environment variables**
+   ```bash
+   cp .env.example .env
+   ```
+   
+   Edit `.env` with your Firebase configuration:
+   ```env
+   VITE_FIREBASE_API_KEY=your_api_key
+   VITE_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
+   VITE_FIREBASE_PROJECT_ID=your_project_id
+   VITE_FIREBASE_STORAGE_BUCKET=your_project.appspot.com
+   VITE_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
+   VITE_FIREBASE_APP_ID=your_app_id
+   VITE_FIREBASE_DATABASE_URL=https://your_project.firebaseio.com
+   VITE_OPENAI_API_KEY=your_openai_key
+   VITE_USE_LOCAL_AI=false (true -> connects to aws endpoint, false -> connects to localhost:3001 endpoint)
+   ```
+
+4. **Start development server**
+   ```bash
+   npm run dev
+   npm run dev:agent
+   ```
+
+5. **Open in browser**
+   Navigate to [http://localhost:5173](http://localhost:5173)
+   http://localhost:3000 runs the ai agent
+
+### Development with AI Agent
+
+For full AI functionality, run the AI agent server:
+
 ```bash
-npm install
+# Terminal 1: Start AI agent server
+npm run dev:agent
+
+# Terminal 2: Start main application
 npm run dev
 ```
 
-Open [http://localhost:5173](http://localhost:5173) to view the app.
+## 🛠 Dependencies
 
-## 🎯 Current Features
+### Core Dependencies
+- **React 18** - UI framework
+- **Vite** - Build tool and dev server
+- **Konva.js** - 2D canvas rendering engine
+- **Firebase** - Authentication and real-time database
+- **Zustand** - State management
+- **TailwindCSS** - Styling framework
 
-- ✅ Clean UI layout with header, toolbar, canvas area, and user panel
-- ✅ Responsive design with TailwindCSS
-- ✅ Shape creation tools (Rectangle, Circle, Text) - UI ready
-- ✅ Online users display
-- 🚧 Canvas functionality - coming next
-- 🚧 Real-time collaboration - coming next
-- 🚧 Firebase integration - coming next
+### AI & Language Processing
+- **OpenAI** - GPT-4 integration for natural language processing
+- **LangChain** - AI agent framework with ReAct reasoning
+- **LangSmith** - AI agent monitoring and debugging
 
-## 🛠 Tech Stack
+### Real-time Collaboration
+- **Firebase Auth** - User authentication (email/password + Google)
+- **Cloud Firestore** - Persistent shape data storage
+- **Firebase Realtime Database** - High-frequency cursor and position updates
 
-- **Frontend**: React 18 + Vite
-- **Styling**: TailwindCSS
-- **Canvas**: Konva.js (to be integrated)
-- **Backend**: Firebase (to be integrated)
-- **Real-time**: Firebase Realtime Database (to be integrated)
+### Development Tools
+- **ESLint** - Code linting
+- **PostCSS** - CSS processing
+- **Concurrently** - Parallel script execution
 
-## 📁 Project Structure
+## 🏗 Architecture Overview
 
-```
-src/
-├── components/
-│   ├── Header.jsx          # Top navigation
-│   ├── Toolbar.jsx         # Left shape tools
-│   ├── CanvasArea.jsx      # Main drawing area
-│   └── OnlineUsers.jsx     # Right user panel
-├── App.jsx                 # Main app layout
-└── main.jsx               # Entry point
-```
+CollabCanvas uses a hybrid architecture combining:
 
-## 🎨 UI Layout
-
-```
-┌─────────────────────────────────────────────────┐
-│ Collab Canvas                   [User Info] [Sign out] │
-├─────────────────────────────────────────────────┤
-│ [⬜] │                                    │ Online Users   │
-│ [⭕] │         Canvas Area               │ • Alice (You)  │
-│ [T]  │     (Ready for Konva.js)          │ • Bob          │
-│      │                                    │ • Charlie      │
-│      │                                    │ • Diana        │
-└─────────────────────────────────────────────────┘
-```
-
-## 🔄 Development Status
-
-This is a fresh restart of the project with a clean, minimal foundation. 
-Ready to add canvas functionality and real-time features step by step.
-
-## 📋 Next Steps
-
-1. Integrate Konva.js canvas into CanvasArea
-2. Add shape creation functionality
-3. Implement Firebase real-time synchronization
-4. Add user authentication
-5. Build multiplayer cursor tracking
+- **Frontend**: React with Konva.js for canvas rendering
+- **State Management**: Zustand with Immer for immutable updates
+- **Real-time Sync**: Dual-database approach (Firestore + Realtime DB)
+- **AI Integration**: LangChain ReAct agent with OpenAI GPT-4
+- **Authentication**: Firebase Auth with Google OAuth
