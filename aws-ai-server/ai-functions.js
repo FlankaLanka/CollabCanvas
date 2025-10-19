@@ -63,13 +63,13 @@ export const AI_FUNCTIONS = [
   // MANIPULATION COMMANDS
   {
     name: 'moveShape',
-    description: 'Move an existing shape to a new position using natural language description',
+    description: 'Move an existing shape to a new position using natural language description. If no specific shape is mentioned, automatically find the most appropriate shape (e.g., "move the text" will find any text shape, "move the circle" will find any circle).',
     parameters: {
       type: 'object',
       properties: {
         shapeId: {
           type: 'string',
-          description: 'Natural language description of the shape (e.g., "blue rectangle", "red circle", "large triangle")'
+          description: 'Natural language description of the shape (e.g., "blue rectangle", "red circle", "large triangle", "text", "circle"). If only type is mentioned (e.g., "text", "circle"), automatically find any shape of that type.'
         },
         x: {
           oneOf: [
@@ -90,13 +90,13 @@ export const AI_FUNCTIONS = [
 
   {
     name: 'resizeShape',
-    description: 'Resize an existing shape using natural language description',
+    description: 'Resize an existing shape using natural language description. If no specific shape is mentioned, automatically find the most appropriate shape (e.g., "resize the text" will find any text shape, "resize the circle" will find any circle).',
     parameters: {
       type: 'object',
       properties: {
         shapeId: {
           type: 'string',
-          description: 'Natural language description of the shape (e.g., "blue rectangle", "red circle", "large triangle")'
+          description: 'Natural language description of the shape (e.g., "blue rectangle", "red circle", "large triangle", "text", "circle"). If only type is mentioned (e.g., "text", "circle"), automatically find any shape of that type.'
         },
         width: {
           type: 'number',
@@ -125,13 +125,13 @@ export const AI_FUNCTIONS = [
 
   {
     name: 'rotateShape',
-    description: 'Rotate an existing shape using natural language description',
+    description: 'Rotate an existing shape using natural language description. If no specific shape is mentioned, automatically find the most appropriate shape (e.g., "rotate the text" will find any text shape, "rotate the circle" will find any circle).',
     parameters: {
       type: 'object',
       properties: {
         shapeId: {
           type: 'string',
-          description: 'Natural language description of the shape (e.g., "blue rectangle", "red circle", "large triangle")'
+          description: 'Natural language description of the shape (e.g., "blue rectangle", "red circle", "large triangle", "text", "circle"). If only type is mentioned (e.g., "text", "circle"), automatically find any shape of that type.'
         },
         degrees: {
           type: 'number',
@@ -144,13 +144,13 @@ export const AI_FUNCTIONS = [
 
   {
     name: 'changeShapeColor',
-    description: 'Change the color of an existing shape using natural language description',
+    description: 'Change the color of an existing shape using natural language description. If no specific shape is mentioned, automatically find the most appropriate shape (e.g., "change the text color" will find any text shape, "change the circle color" will find any circle).',
     parameters: {
       type: 'object',
       properties: {
         shapeId: {
           type: 'string',
-          description: 'Natural language description of the shape (e.g., "blue rectangle", "red circle", "large triangle")'
+          description: 'Natural language description of the shape (e.g., "blue rectangle", "red circle", "large triangle", "text", "circle"). If only type is mentioned (e.g., "text", "circle"), automatically find any shape of that type.'
         },
         color: {
           type: 'string',
@@ -163,13 +163,13 @@ export const AI_FUNCTIONS = [
 
   {
     name: 'changeShapeText',
-    description: 'Change the text content of an existing text shape using natural language description',
+    description: 'Change the text content of an existing text shape using natural language description. If no specific shape is mentioned, automatically find the most appropriate text shape (e.g., "change the text" will find any text shape).',
     parameters: {
       type: 'object',
       properties: {
         shapeId: {
           type: 'string',
-          description: 'Natural language description of the text shape (e.g., "text that says Hello", "username label", "title text")'
+          description: 'Natural language description of the text shape (e.g., "text that says Hello", "username label", "title text", "text"). If only "text" is mentioned, automatically find any text shape.'
         },
         newText: {
           type: 'string',

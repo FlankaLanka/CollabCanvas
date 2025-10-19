@@ -8,9 +8,502 @@
 // Environment detection
 const isDevelopment = import.meta.env.DEV;
 
-// API endpoint configuration
-// Use AWS for both development and production
-const AI_API_ENDPOINT = 'https://vtxv073yg9.execute-api.us-east-1.amazonaws.com/api/ai-chat';
+// Complex Command Planner - Multi-step execution for complex UI commands
+class ComplexPlanner {
+  constructor(canvasAPI) {
+    this.canvasAPI = canvasAPI;
+    this.predefinedPlans = this.initializePredefinedPlans();
+    this.lastCreatedContainer = null;
+  }
+
+  // Get the last created container for relative positioning
+  getLastCreatedContainer() {
+    return this.lastCreatedContainer;
+  }
+
+  // Set the last created container
+  setLastCreatedContainer(container) {
+    this.lastCreatedContainer = container;
+  }
+
+  // Initialize predefined plans for reliable complex command execution
+  initializePredefinedPlans() {
+    return {
+      'login form': {
+        name: 'Login Form Creation',
+        steps: [
+          // Container - centered at user's viewport
+          { action: 'createFormContainer', params: { width: 400, height: 420, centerX: 'viewport', centerY: 'viewport' } },
+      
+          // Title (left aligned, strong contrast) - relative to container
+          { action: 'createShape', params: { 
+              shapeType: 'text', text: 'Welcome',
+              x: 'container+0', y: 'container-180', fontSize: 32, fill: '#5aaf00', fontWeight: 'bold', align: 'center', fontFamily: 'Comic Sans MS'
+          }},
+      
+          // Username - relative to container
+          { action: 'createShape', params: { 
+              shapeType: 'text', text: 'Username:',
+              x: 'container-75', y: 'container-90', fontSize: 14, fill: '#000000', fontFamily: 'Comic Sans MS'
+          }},
+          { action: 'createShape', params: { 
+              shapeType: 'text_input', text: 'example@email.com',
+              x: 'container+0', y: 'container-40', width: 352, height: 44,
+              fill: '#FFFFFF', borderColor: '#D1D5DB', fill: '#a0a0a0'
+          }},
+      
+          // Password - relative to container
+          { action: 'createShape', params: { 
+              shapeType: 'text', text: 'Password:',
+              x: 'container-75', y: 'container+10', fontSize: 14, textColor: '#000000', fontFamily: 'Comic Sans MS'
+          }},
+          { action: 'createShape', params: { 
+              shapeType: 'text_input', text: '********',
+              x: 'container+0', y: 'container+60', width: 352, height: 44,
+              fill: '#FFFFFF', borderColor: '#D1D5DB', fill: '#a0a0a0'
+          }},
+      
+          // Button (full inner width, clear contrast) - relative to container
+          { action: 'createShape', params: { 
+              shapeType: 'rectangle', text: 'Sign In',
+              x: 'container+0', y: 'container+130', width: 100, height: 50,
+              fill: '#3B82F6', textColor: '#FFFFFF', fontSize: 16, fontWeight: 'bold'
+          }},
+          { action: 'createShape', params: { 
+            shapeType: 'text', text: 'Log in',
+            x: 'container+0', y: 'container+115', fontSize: 14, fill: '#ffffff', align: 'center', fontFamily: 'Comic Sans MS'
+        }},
+
+        // forgot password?
+          { action: 'createShape', params: { 
+            shapeType: 'text', text: 'Forgot your password?',
+            x: 'container+175', y: 'container+180', fontSize: 10, fill: '#0000ff'
+        }},
+        ]
+      },
+      'navigation bar': {
+        name: 'Navigation Bar Creation',
+        steps: [
+          // Container - centered at user's viewport
+          { action: 'createFormContainer', params: { width: 800, height: 60, centerX: 'viewport', centerY: 'viewport' } },
+          
+          // Navigation items - relative to container
+          { action: 'createShape', params: { shapeType: 'text', text: '🏠Home', x: 'container+20', y: 'container+0', fontSize: 16, fill: '#FFFFFF' } },
+          { action: 'createShape', params: { shapeType: 'text', text: '👤About', x: 'container+100', y: 'container+0', fontSize: 16, fill: '#FFFFFF' } },
+          { action: 'createShape', params: { shapeType: 'text', text: '📞Contact', x: 'container+180', y: 'container+0', fontSize: 16, fill: '#FFFFFF' } },
+          { action: 'createShape', params: { shapeType: 'text', text: '💼Services', x: 'container+260', y: 'container+0', fontSize: 16, fill: '#FFFFFF' } }
+        ]
+      },
+      'card layout': {
+        name: 'Card Layout Creation',
+        steps: [
+          // Container - centered at user's viewport
+          { action: 'createFormContainer', params: { width: 300, height: 200, centerX: 'viewport', centerY: 'viewport' } },
+          
+          // Card content - relative to container
+          { action: 'createShape', params: { shapeType: 'text', text: 'Card Title', x: 'container+20', y: 'container+20', fontSize: 18, fill: '#1F2937' } },
+          { action: 'createShape', params: { shapeType: 'text', text: 'This is the card content area where you can place your main information.', x: 'container+20', y: 'container+60', fontSize: 14, fill: '#6B7280' } },
+          { action: 'createShape', params: { shapeType: 'rectangle', text: 'Learn More', x: 'container+20', y: 'container+150', width: 100, height: 30, fill: '#3B82F6' } }
+        ]
+      },
+      'dashboard': {
+        name: 'Dashboard Creation',
+        steps: [
+          // Container - centered at user's viewport
+          { action: 'createFormContainer', params: { width: 800, height: 600, centerX: 'viewport', centerY: 'viewport' } },
+          
+          // Dashboard content - relative to container
+          { action: 'createShape', params: { shapeType: 'text', text: 'Dashboard', x: 'container+20', y: 'container+20', fontSize: 24, fill: '#1F2937' } },
+          
+          // First metric card - relative to container
+          { action: 'createShape', params: { shapeType: 'rectangle', x: 'container+20', y: 'container+60', width: 200, height: 120, fill: '#FFFFFF' } },
+          { action: 'createShape', params: { shapeType: 'text', text: 'Total Users', x: 'container+30', y: 'container+80', fontSize: 14, fill: '#6B7280' } },
+          { action: 'createShape', params: { shapeType: 'text', text: '1,234', x: 'container+30', y: 'container+100', fontSize: 24, fill: '#1F2937' } },
+          
+          // Second metric card - relative to container
+          { action: 'createShape', params: { shapeType: 'rectangle', x: 'container+240', y: 'container+60', width: 200, height: 120, fill: '#FFFFFF' } },
+          { action: 'createShape', params: { shapeType: 'text', text: 'Revenue', x: 'container+250', y: 'container+80', fontSize: 14, fill: '#6B7280' } },
+          { action: 'createShape', params: { shapeType: 'text', text: '$12,345', x: 'container+250', y: 'container+100', fontSize: 24, fill: '#1F2937' } }
+        ]
+      },
+      'contact form': {
+        name: 'Contact Form Creation',
+        steps: [
+          // Container - centered at user's viewport
+          { action: 'createFormContainer', params: { width: 450, height: 600, centerX: 'viewport', centerY: 'viewport' } },
+          
+          // Create form title - relative to container
+          { action: 'createShape', params: { shapeType: 'text', text: 'Contact Us', x: 'container+24', y: 'container+24', fontSize: 24, fill: '#1F2937', fontWeight: 'bold' } },
+          
+          // Name section - relative to container
+          { action: 'createShape', params: { shapeType: 'text', text: 'Full Name', x: 'container+24', y: 'container+64', fontSize: 14, fill: '#374151' } },
+          { action: 'createShape', params: { shapeType: 'text_input', text: 'Enter your full name', x: 'container+24', y: 'container+76', width: 402, height: 44, fill: '#FFFFFF', borderColor: '#D1D5DB', textColor: '#1F2937' } },
+          
+          // Email section - relative to container
+          { action: 'createShape', params: { shapeType: 'text', text: 'Email Address', x: 'container+24', y: 'container+144', fontSize: 14, fill: '#374151' } },
+          { action: 'createShape', params: { shapeType: 'text_input', text: 'Enter your email address', x: 'container+24', y: 'container+156', width: 402, height: 44, fill: '#FFFFFF', borderColor: '#D1D5DB', textColor: '#1F2937' } },
+          
+          // Message section - relative to container
+          { action: 'createShape', params: { shapeType: 'text', text: 'Message', x: 'container+24', y: 'container+224', fontSize: 14, fill: '#374151' } },
+          { action: 'createShape', params: { shapeType: 'text_input', text: 'Enter your message here...', x: 'container+24', y: 'container+236', width: 402, height: 120, fill: '#FFFFFF', borderColor: '#D1D5DB', textColor: '#1F2937' } },
+          
+          // Submit button - relative to container
+          { action: 'createShape', params: { shapeType: 'rectangle', text: 'Send Message', x: 'container+24', y: 'container+380', width: 150, height: 48, fill: '#3B82F6', textColor: '#FFFFFF', fontSize: 16, fontWeight: 'bold' } }
+        ]
+      }
+    };
+  }
+
+  // Detect if a command is complex and requires multi-step planning
+  isComplexCommand(userMessage) {
+    const complexPatterns = [
+      /create.*login.*form/i,
+      /build.*login.*form/i,
+      /generate.*login.*form/i,
+      /create.*navigation.*bar/i,
+      /build.*navbar/i,
+      /create.*nav.*bar/i,
+      /create.*card.*layout/i,
+      /build.*card/i,
+      /create.*dashboard/i,
+      /build.*dashboard/i,
+      /create.*contact.*form/i,
+      /build.*contact.*form/i,
+      /create.*form/i,
+      /build.*form/i,
+      /create.*ui.*component/i,
+      /build.*ui.*component/i,
+      /create.*layout/i,
+      /build.*layout/i
+    ];
+
+    return complexPatterns.some(pattern => pattern.test(userMessage));
+  }
+
+  // Generate a step-by-step execution plan for complex commands
+  generatePlan(userMessage, canvasState = null) {
+    const message = userMessage.toLowerCase();
+    
+    // Check for predefined plans first
+    for (const [key, plan] of Object.entries(this.predefinedPlans)) {
+      if (message.includes(key)) {
+        return {
+          type: 'predefined',
+          name: plan.name,
+          steps: plan.steps,
+          source: 'predefined'
+        };
+      }
+    }
+
+    // Generate dynamic plan based on command analysis
+    return this.generateDynamicPlan(userMessage, canvasState);
+  }
+
+  // Generate a dynamic plan based on command analysis
+  generateDynamicPlan(userMessage, canvasState) {
+    const steps = [];
+    const message = userMessage.toLowerCase();
+
+    // Analyze the command and generate appropriate steps
+    if (message.includes('form')) {
+      steps.push(
+        { action: 'createFormContainer', params: { width: 360, height: 400, centerX: 'viewport', centerY: 'viewport' } },
+        { action: 'createShape', params: { shapeType: 'text', text: 'Form Title', x: 'container+20', y: 'container+20', fontSize: 18, fill: '#1F2937' } },
+        { action: 'createShape', params: { shapeType: 'text_input', text: 'Input field', x: 'container+20', y: 'container+60', width: 320, height: 40, fill: '#FFFFFF' } },
+        { action: 'createShape', params: { shapeType: 'rectangle', text: 'Submit', x: 'container+20', y: 'container+120', width: 100, height: 40, fill: '#3B82F6' } }
+      );
+    } else if (message.includes('card')) {
+      steps.push(
+        { action: 'createFormContainer', params: { width: 300, height: 200, centerX: 'viewport', centerY: 'viewport' } },
+        { action: 'createShape', params: { shapeType: 'text', text: 'Card Title', x: 'container+20', y: 'container+20', fontSize: 18, fill: '#1F2937' } },
+        { action: 'createShape', params: { shapeType: 'text', text: 'Card content goes here', x: 'container+20', y: 'container+60', fontSize: 14, fill: '#6B7280' } }
+      );
+    } else if (message.includes('navigation') || message.includes('navbar')) {
+      steps.push(
+        { action: 'createFormContainer', params: { width: 800, height: 60, centerX: 'viewport', centerY: 'viewport' } },
+        { action: 'createShape', params: { shapeType: 'text', text: 'Home', x: 'container+20', y: 'container+20', fontSize: 16, fill: '#FFFFFF' } },
+        { action: 'createShape', params: { shapeType: 'text', text: 'About', x: 'container+100', y: 'container+20', fontSize: 16, fill: '#FFFFFF' } },
+        { action: 'createShape', params: { shapeType: 'text', text: 'Contact', x: 'container+180', y: 'container+20', fontSize: 16, fill: '#FFFFFF' } }
+      );
+    }
+
+    return {
+      type: 'dynamic',
+      name: 'Custom UI Component',
+      steps: steps,
+      source: 'generated'
+    };
+  }
+
+  // Execute a complex command plan step by step
+  async executePlan(plan, debug = false) {
+    const results = [];
+    const errors = [];
+
+    if (debug) {
+      console.log(`🎯 Executing complex plan: ${plan.name}`);
+      console.log(`📋 Plan type: ${plan.type} (${plan.source})`);
+      console.log(`📝 Steps to execute: ${plan.steps.length}`);
+    }
+
+    for (let i = 0; i < plan.steps.length; i++) {
+      const step = plan.steps[i];
+      
+      if (debug) {
+        console.log(`🔧 Step ${i + 1}/${plan.steps.length}: ${step.action}`, step.params);
+      }
+
+      try {
+        // Execute the step using the canvas API
+        const result = await this.executeStep(step);
+        results.push({
+          step: i + 1,
+          action: step.action,
+          success: true,
+          result: result
+        });
+
+        if (debug) {
+          console.log(`✅ Step ${i + 1} completed successfully`);
+        }
+      } catch (error) {
+        console.error(`❌ Step ${i + 1} failed:`, error);
+        errors.push({
+          step: i + 1,
+          action: step.action,
+          error: error.message
+        });
+
+        // Continue with remaining steps even if one fails
+        if (debug) {
+          console.log(`⚠️ Continuing with remaining steps...`);
+        }
+        
+        // For non-critical steps like autoFixUI, we can continue
+        // For critical steps like createShape, we might want to stop
+        if (step.action === 'autoFixUI' || step.action === 'stackVertically' || step.action === 'alignHorizontally') {
+          console.log(`⚠️ Non-critical step failed, continuing with plan...`);
+        }
+      }
+    }
+
+    return {
+      planName: plan.name,
+      totalSteps: plan.steps.length,
+      successfulSteps: results.length,
+      failedSteps: errors.length,
+      results: results,
+      errors: errors,
+      success: errors.length === 0
+    };
+  }
+
+  // Execute a single step in the plan
+  async executeStep(step) {
+    const { action, params } = step;
+
+    // Handle special cases for auto-detection
+    if (params.elements === 'auto' || params.container === 'auto') {
+      // Get recent shapes for auto-detection
+      const recentShapes = this.canvasAPI.getCanvasState().shapes.slice(-5);
+      params.elements = recentShapes.map(shape => shape.id);
+      params.container = recentShapes[0]?.id; // Use first shape as container
+    }
+
+    // Map action to canvas API method
+    switch (action) {
+      case 'createFormContainer':
+        // Handle viewport centering
+        let centerX = params.centerX;
+        let centerY = params.centerY;
+        
+        if (params.centerX === 'viewport' || params.centerY === 'viewport') {
+          const viewportCenter = this.canvasAPI.getViewportCenter();
+          centerX = params.centerX === 'viewport' ? viewportCenter.x : params.centerX;
+          centerY = params.centerY === 'viewport' ? viewportCenter.y : params.centerY;
+        }
+        
+        const container = await this.canvasAPI.createFormContainer(
+          params.width, 
+          params.height, 
+          centerX, 
+          centerY
+        );
+        
+        // Store the container for relative positioning
+        this.setLastCreatedContainer(container);
+        
+        return container;
+
+      case 'createShape':
+        // Handle container-relative positioning
+        let finalX = params.x;
+        let finalY = params.y;
+        
+        if (typeof params.x === 'string' && params.x.startsWith('container')) {
+          const offset = parseInt(params.x.replace('container', ''));
+          const container = this.getLastCreatedContainer();
+          finalX = container ? container.x + offset : offset;
+        }
+        
+        if (typeof params.y === 'string' && params.y.startsWith('container')) {
+          const offset = parseInt(params.y.replace('container', ''));
+          const container = this.getLastCreatedContainer();
+          finalY = container ? container.y + offset : offset;
+        }
+        
+        // Handle text input shapes with better readability
+        if (params.shapeType === 'text_input') {
+          // Ensure good contrast for text input fields
+          const textColor = params.textColor || '#1F2937'; // Dark gray for readability
+          const borderColor = params.borderColor || '#D1D5DB'; // Light gray border
+          const backgroundColor = params.fill || '#FFFFFF'; // White background
+          
+          return await this.canvasAPI.createShape({
+            ...params,
+            x: finalX,
+            y: finalY,
+            fill: backgroundColor,
+            textColor: textColor,
+            borderColor: borderColor,
+            fontSize: params.fontSize || 16,
+            fontWeight: params.fontWeight || 'normal',
+            fontFamily: params.fontFamily || 'Arial, sans-serif' // Pass through fontFamily
+          });
+        }
+        
+        // Handle regular text shapes with proper contrast
+        if (params.shapeType === 'text') {
+          const textColor = params.textColor || params.fill || '#1F2937'; // Use textColor if provided, fallback to fill
+          return await this.canvasAPI.createShape({
+            ...params,
+            x: finalX,
+            y: finalY,
+            fill: textColor, // Use the resolved textColor
+            fontSize: params.fontSize || 16,
+            fontWeight: params.fontWeight || 'normal',
+            fontFamily: params.fontFamily || 'Arial, sans-serif', // Pass through fontFamily
+            textAlign: params.textAlign || 'left' // Pass through textAlign
+          });
+        }
+        
+        // Handle button shapes with proper styling
+        if (params.shapeType === 'rectangle' && params.text) {
+          const buttonColor = params.fill || '#3B82F6';
+          const textColor = params.textColor || '#FFFFFF';
+          return await this.canvasAPI.createShape({
+            ...params,
+            x: finalX,
+            y: finalY,
+            fill: buttonColor,
+            textColor: textColor,
+            fontSize: params.fontSize || 16,
+            fontWeight: params.fontWeight || 'bold'
+          });
+        }
+        
+        return await this.canvasAPI.createShape({
+          ...params,
+          x: finalX,
+          y: finalY
+        });
+
+      case 'stackVertically':
+        return await this.canvasAPI.stackVertically(
+          params.elements, 
+          params.container, 
+          params.startY, 
+          params.gap
+        );
+
+      case 'alignHorizontally':
+        return await this.canvasAPI.alignHorizontally(
+          params.elements, 
+          params.centerX, 
+          params.startY, 
+          params.gap
+        );
+
+      case 'autoFixUI':
+        try {
+          return await this.canvasAPI.autoFixUI();
+        } catch (error) {
+          console.warn('autoFixUI failed, continuing with plan:', error.message);
+          return { success: false, error: error.message };
+        }
+
+      case 'placeBelow':
+        return await this.canvasAPI.placeBelow(
+          params.shapeId, 
+          params.referenceShapeId, 
+          params.gap
+        );
+
+      case 'placeRightOf':
+        return await this.canvasAPI.placeRightOf(
+          params.shapeId, 
+          params.referenceShapeId, 
+          params.gap
+        );
+
+      case 'centerInContainer':
+        return await this.canvasAPI.centerInContainer(
+          params.shapeId, 
+          params.containerId
+        );
+
+      case 'centerContainer':
+        return this.canvasAPI.centerContainer(
+          params.width, 
+          params.height, 
+          params.canvasWidth, 
+          params.canvasHeight
+        );
+
+      default:
+        throw new Error(`Unknown action: ${action}`);
+    }
+  }
+
+  // Generate a friendly conversational response for complex commands
+  generateFriendlyResponse(executionResult, planName) {
+    const { successfulSteps, totalSteps, errors } = executionResult;
+    
+    if (successfulSteps === totalSteps) {
+      return `✅ Perfect! I've created a ${planName.toLowerCase()} with ${successfulSteps} components, all properly aligned and styled.`;
+    } else if (successfulSteps > 0) {
+      return `✅ Great! I've created a ${planName.toLowerCase()} with ${successfulSteps} out of ${totalSteps} components. ${errors.length > 0 ? 'Some steps had minor issues, but the main structure is complete.' : ''}`;
+    } else {
+      return `⚠️ I encountered some issues while creating the ${planName.toLowerCase()}. Please try again or let me know if you need help with a specific part.`;
+    }
+  }
+}
+
+// API endpoint configuration with environment-based switching
+const USE_LOCAL_AI = import.meta.env.VITE_USE_LOCAL_AI === 'true';
+const AI_SERVER_URL = import.meta.env.VITE_AI_SERVER_URL;
+
+// Determine which endpoint to use
+let AI_API_ENDPOINT;
+if (AI_SERVER_URL) {
+  // Use custom AI server URL if provided
+  AI_API_ENDPOINT = AI_SERVER_URL;
+} else if (USE_LOCAL_AI) {
+  // Use local AI server
+  AI_API_ENDPOINT = 'http://localhost:3000/api/ai-chat';
+} else {
+  // Use AWS for production
+  AI_API_ENDPOINT = 'https://vtxv073yg9.execute-api.us-east-1.amazonaws.com/api/ai-chat';
+}
+
+// Log which endpoint is being used
+console.log('🤖 AI Endpoint Configuration:', {
+  USE_LOCAL_AI,
+  AI_SERVER_URL,
+  AI_API_ENDPOINT,
+  environment: isDevelopment ? 'development' : 'production'
+});
 
 // Debug logging removed for production
 
@@ -878,6 +1371,9 @@ export class AICanvasService {
     this.conversationHistory = [];
     this.isProcessing = false;
     
+    // Initialize complex command planner for multi-step execution
+    this.complexPlanner = new ComplexPlanner(canvasAPI);
+    
     // Frontend uses HTTP requests to backend, not direct LangChain
     console.log('🤖 AICanvasService initialized (frontend mode)');
     
@@ -896,8 +1392,8 @@ export class AICanvasService {
   }
 
 
-  // Process a natural language command
-  async processCommand(userMessage) {
+  // Process a natural language command with hybrid approach
+  async processCommand(userMessage, debug = false) {
     if (this.isProcessing) {
       throw new Error('AI is currently processing another command. Please wait.');
     }
@@ -906,7 +1402,66 @@ export class AICanvasService {
     const startTime = Date.now();
 
     try {
-      // Route ALL commands through the server for proper function call execution
+      // HYBRID APPROACH: Check if this is a complex command that needs multi-step planning
+      if (this.complexPlanner.isComplexCommand(userMessage)) {
+        console.log('🎯 Complex command detected, using multi-step planner');
+        return await this.processComplexCommand(userMessage, startTime, debug);
+      }
+      
+      // BASIC COMMANDS: Use existing ReAct approach for simple commands
+      console.log('🔧 Basic command detected, using ReAct approach');
+      return await this.processBasicCommand(userMessage, startTime);
+      
+    } catch (error) {
+      console.error('AI processing error:', error);
+      throw new Error(`AI processing failed: ${error.message}`);
+    } finally {
+      this.isProcessing = false;
+    }
+  }
+
+  // Process complex commands using multi-step planning
+  async processComplexCommand(userMessage, startTime, debug = false) {
+    try {
+      // Get current canvas state for context
+      const currentCanvasState = this.canvasAPI.getCanvasState();
+      
+      // Generate execution plan
+      const plan = this.complexPlanner.generatePlan(userMessage, currentCanvasState);
+      
+      if (debug) {
+        console.log('📋 Generated plan:', plan);
+      }
+      
+      // Execute the plan step by step
+      const executionResult = await this.complexPlanner.executePlan(plan, debug);
+      
+      // Generate friendly response
+      const friendlyResponse = this.complexPlanner.generateFriendlyResponse(executionResult, plan.name);
+      
+      const processingTime = Date.now() - startTime;
+      
+      return {
+        response: friendlyResponse,
+        reasoning: [`Executed ${executionResult.successfulSteps} out of ${executionResult.totalSteps} steps`],
+        intermediateSteps: executionResult.results.map(r => `${r.step}. ${r.action}`),
+        processingTime,
+        agentUsed: 'complex-planner',
+        planName: plan.name,
+        planType: plan.type,
+        executionResult: executionResult
+      };
+      
+    } catch (error) {
+      console.error('Complex command processing error:', error);
+      throw error;
+    }
+  }
+
+  // Process basic commands using existing ReAct approach
+  async processBasicCommand(userMessage, startTime) {
+    try {
+      // Route basic commands through the server for proper function call execution
       const isUICommand = /login.*form|generate.*login|create.*login|navigation.*bar|nav.*bar|card.*layout|create.*card/i.test(userMessage);
       const isBasicCommand = /create.*|draw.*|add.*|make.*|move.*|resize.*|rotate.*|change.*|arrange.*|space.*|grid.*/i.test(userMessage);
       
@@ -920,6 +1475,20 @@ export class AICanvasService {
           },
           body: JSON.stringify({
             messages: [
+              {
+                role: 'system',
+                content: `You are an AI assistant that manipulates a collaborative canvas.
+
+🎯 SHAPE DETECTION INTELLIGENCE:
+When users mention shapes without specific details (e.g., "rotate the text", "move the circle", "resize the rectangle"), you should:
+1. Automatically find the most appropriate shape of that type
+2. If multiple shapes exist, pick any one that matches the criteria
+3. Use simple type names like "text", "circle", "rectangle" as shapeId parameters
+4. NEVER ask for clarification - always take action with the best available match
+
+CURRENT CANVAS STATE:
+${JSON.stringify(currentCanvasState, null, 2)}`
+              },
               {
                 role: 'user',
                 content: userMessage
@@ -1065,10 +1634,8 @@ export class AICanvasService {
         return await this._processBasicCommand(userMessage, startTime);
       }
     } catch (error) {
-      console.error('AI processing error:', error);
-      throw new Error(`AI processing failed: ${error.message}`);
-    } finally {
-      this.isProcessing = false;
+      console.error('Basic command processing error:', error);
+      throw error;
     }
   }
 
@@ -1096,6 +1663,13 @@ export class AICanvasService {
         {
           role: 'system',
           content: `You are an AI assistant that manipulates a collaborative canvas.
+
+🎯 SHAPE DETECTION INTELLIGENCE:
+When users mention shapes without specific details (e.g., "rotate the text", "move the circle", "resize the rectangle"), you should:
+1. Automatically find the most appropriate shape of that type
+2. If multiple shapes exist, pick any one that matches the criteria
+3. Use simple type names like "text", "circle", "rectangle" as shapeId parameters
+4. NEVER ask for clarification - always take action with the best available match
 
 CURRENT CANVAS STATE:
 ${JSON.stringify(currentCanvasState, null, 2)}

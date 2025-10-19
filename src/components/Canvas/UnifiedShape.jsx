@@ -583,18 +583,20 @@ function UnifiedShape({ shape, isSelected, updateCursor, snapToGrid = false }) {
       return (
         <Group {...commonProps}>
           <Text
-            x={0}
-            y={0}
+            x={(shape.width || 200) / 2}
+            y={(shape.height || 'auto') === 'auto' ? 0 : (shape.height || 40) / 2}
             text={shape.text || 'Text'}
             fontSize={shape.fontSize || 20}
             fontFamily={shape.fontFamily || 'Arial, sans-serif'}
             fill={shape.fill || '#1F2937'}
             width={shape.width || 200}
             height={shape.height || 'auto'}
-            align={shape.align || 'left'}
-            verticalAlign={shape.verticalAlign || 'top'}
+            align={shape.align || 'center'}
+            verticalAlign={shape.verticalAlign || 'middle'}
             padding={shape.padding || 8}
             wrap="word"
+            offsetX={shape.width ? shape.width / 2 : 100}
+            offsetY={shape.height && shape.height !== 'auto' ? shape.height / 2 : 0}
           />
         </Group>
       );

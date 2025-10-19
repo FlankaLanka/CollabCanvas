@@ -1255,7 +1255,10 @@ export function CanvasProvider({ children }) {
     
     // Orphaned update cleanup functions
     cleanupOrphanedUpdates,
-    getOrphanedUpdateCount
+    getOrphanedUpdateCount,
+    
+    // Force re-render function
+    triggerUpdate
   };
 
   return (

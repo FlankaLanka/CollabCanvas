@@ -46,7 +46,7 @@ export function useAI() {
    */
   const isAIAvailable = useCallback(() => {
     const hasService = !!aiServiceRef.current;
-    console.log('🔍 isAIAvailable check:', { hasService });
+    //console.log('🔍 isAIAvailable check:', { hasService });
     
     // For now, always return true to allow AI functionality
     // The service will handle errors gracefully

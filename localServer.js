@@ -1,8 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import serverlessExpress from '@codegenie/serverless-express';
-import { AI_FUNCTIONS } from './ai-functions.js';
+import { AI_FUNCTIONS } from './aws-ai-server/ai-functions.js';
 
 // Load environment variables
 dotenv.config();
@@ -16,9 +15,7 @@ app.use(cors({
 }));
 app.use(express.json({ limit: '10mb' }));
 
-// AI_FUNCTIONS is imported from ai-functions.js (46 functions)
-
-// System prompt
+// System prompt (same as AWS server)
 const systemPrompt = `You are an AI assistant that helps users create and manipulate shapes on a collaborative canvas. You have access to a comprehensive set of tools for creating, modifying, and arranging shapes.
 
 IMPORTANT: You MUST use the available tools to perform actions. Do not just describe what you would do - actually call the appropriate tool functions.
@@ -46,29 +43,13 @@ ALWAYS use the most appropriate tool for the user's request:
 
 Be precise with positioning and sizing, and always consider the user's current viewport and existing shapes when making recommendations.`;
 
-// Simple test endpoint
-app.get('/test', (req, res) => {
-  res.json({ message: 'Test endpoint working' });
-});
-
-// Debug endpoint
-app.get('/debug', (req, res) => {
-  res.json({
-    hasOpenAIKey: !!process.env.OPENAI_API_KEY,
-    keyLength: process.env.OPENAI_API_KEY?.length,
-    keyPrefix: process.env.OPENAI_API_KEY?.substring(0, 10),
-    functionCount: AI_FUNCTIONS.length,
-    firstFunction: AI_FUNCTIONS[0]?.name
-  });
-});
-
 // Health check endpoint
 app.get('/health', (req, res) => {
   try {
     res.json({ 
       status: 'healthy',
       timestamp: new Date().toISOString(),
-      environment: process.env.NODE_ENV || 'development',
+      environment: 'local',
       hasOpenAIKey: !!process.env.OPENAI_API_KEY,
       functionCount: AI_FUNCTIONS.length,
       functions: AI_FUNCTIONS.map(f => f.name)
@@ -79,16 +60,28 @@ app.get('/health', (req, res) => {
   }
 });
 
-// Main AI endpoint
+// Debug endpoint
+app.get('/debug', (req, res) => {
+  res.json({
+    hasOpenAIKey: !!process.env.OPENAI_API_KEY,
+    keyLength: process.env.OPENAI_API_KEY?.length,
+    keyPrefix: process.env.OPENAI_API_KEY?.substring(0, 10),
+    functionCount: AI_FUNCTIONS.length,
+    firstFunction: AI_FUNCTIONS[0]?.name,
+    environment: 'local'
+  });
+});
+
+// Main AI endpoint - IDENTICAL to AWS server
 app.post('/api/ai-chat', async (req, res) => {
   try {
     const { messages, canvasState } = req.body;
     const userMessage = messages[messages.length - 1]?.content || '';
 
-    console.log('🤖 AWS AI Agent - Processing request:', userMessage.substring(0, 50) + '...');
+    console.log('🤖 Local AI Agent - Processing request:', userMessage.substring(0, 50) + '...');
     console.log('📊 Available functions:', AI_FUNCTIONS.length);
 
-    // Direct OpenAI API call with all 46 functions
+    // Direct OpenAI API call with all 46 functions (same as AWS)
     const requestPayload = {
       model: 'gpt-4o-mini',
       messages: [
@@ -117,7 +110,7 @@ app.post('/api/ai-chat', async (req, res) => {
     console.log('🔍 User message:', userMessage);
     console.log('🔍 First 3 tools:', requestPayload.tools?.slice(0, 3).map(t => t.function.name));
 
-    // Direct OpenAI API call with all 46 functions
+    // Direct OpenAI API call with all 46 functions (same as AWS)
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -136,7 +129,7 @@ app.post('/api/ai-chat', async (req, res) => {
     const result = await response.json();
     
     console.log('📥 Raw OpenAI Response:', JSON.stringify(result, null, 2));
-    console.log('✅ AWS AI Agent - Request successful:', {
+    console.log('✅ Local AI Agent - Request successful:', {
       hasChoices: !!result.choices,
       choicesLength: result.choices?.length,
       hasFunctionCall: !!result.choices[0]?.message?.function_call,
@@ -151,23 +144,27 @@ app.post('/api/ai-chat', async (req, res) => {
     return res.status(200).json(result);
 
   } catch (error) {
-    console.error('❌ AWS AI Agent - Request failed:', error);
+    console.error('❌ Local AI Agent - Request failed:', error);
     res.status(500).json({
       error: 'AI processing failed: ' + error.message
     });
   }
 });
 
-// Export for serverless
-export const handler = serverlessExpress({ app });
-export { app };
+// Simple test endpoint
+app.get('/test', (req, res) => {
+  res.json({ message: 'Local AI server test endpoint working' });
+});
 
-// Local development server
-if (process.env.NODE_ENV !== 'lambda') {
-  const PORT = process.env.PORT || 3000;
-  app.listen(PORT, () => {
-    console.log(`🚀 AWS AI Agent running on port ${PORT}`);
-    console.log(`📊 Available functions: ${AI_FUNCTIONS.length}`);
-    console.log(`🔧 OpenAI API: ${process.env.OPENAI_API_KEY ? 'Configured' : 'Missing'}`);
-  });
-}
+// Start the server
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log('🚀 Local AI agent running at http://localhost:3000/api/ai-chat');
+  console.log(`📊 Available functions: ${AI_FUNCTIONS.length}`);
+  console.log(`🔧 OpenAI API: ${process.env.OPENAI_API_KEY ? 'Configured' : 'Missing'}`);
+  console.log(`🌍 Environment: LOCAL`);
+  console.log(`🔗 Health check: http://localhost:${PORT}/health`);
+  console.log(`🔗 Debug info: http://localhost:${PORT}/debug`);
+});
+
+export default app;

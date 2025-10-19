@@ -63,8 +63,8 @@ export const DEFAULT_SHAPE_PROPS = {
     fill: '#1F2937',
     width: 200,
     height: 'auto',
-    align: 'left',
-    verticalAlign: 'top',
+    align: 'center',
+    verticalAlign: 'middle',
     padding: 8,
     editable: true,
     zIndex: 0

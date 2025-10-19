@@ -405,18 +405,37 @@ export class CanvasAPI {
    * Find shape by natural language description
    */
   _findShapeByDescription(description, shapes) {
-    const desc = description.toLowerCase();
+    const desc = description.toLowerCase().trim();
     
-    // Color matching
-    const colorMatches = shapes.filter(s => {
+    // If description is just a type (e.g., "text", "circle", "rectangle"), find any shape of that type
+    const typeOnlyMatches = shapes.filter(s => {
+      if (desc === 'text' && s.type === 'text') return true;
+      if (desc === 'circle' && s.type === 'circle') return true;
+      if (desc === 'rectangle' && s.type === 'rectangle') return true;
+      if (desc === 'triangle' && s.type === 'triangle') return true;
+      if (desc === 'line' && s.type === 'line') return true;
+      if (desc === 'input' && s.type === 'text_input') return true;
+      return false;
+    });
+    
+    if (typeOnlyMatches.length > 0) return typeOnlyMatches[0];
+    
+    // Color matching with type
+    const colorTypeMatches = shapes.filter(s => {
       if (desc.includes('blue') && s.fill === '#3B82F6') return true;
       if (desc.includes('red') && s.fill === '#EF4444') return true;
       if (desc.includes('green') && s.fill === '#10B981') return true;
       if (desc.includes('yellow') && s.fill === '#F59E0B') return true;
+      if (desc.includes('purple') && s.fill === '#8B5CF6') return true;
+      if (desc.includes('pink') && s.fill === '#EC4899') return true;
+      if (desc.includes('orange') && s.fill === '#F97316') return true;
+      if (desc.includes('gray') && s.fill === '#6B7280') return true;
+      if (desc.includes('black') && s.fill === '#000000') return true;
+      if (desc.includes('white') && s.fill === '#FFFFFF') return true;
       return false;
     });
     
-    if (colorMatches.length > 0) return colorMatches[0];
+    if (colorTypeMatches.length > 0) return colorTypeMatches[0];
     
     // Size matching
     const sizeMatches = shapes.filter(s => {
@@ -428,16 +447,24 @@ export class CanvasAPI {
     
     if (sizeMatches.length > 0) return sizeMatches[0];
     
-    // Type matching
+    // Type matching (partial)
     const typeMatches = shapes.filter(s => {
       if (desc.includes('circle') && s.type === 'circle') return true;
       if (desc.includes('rectangle') && s.type === 'rectangle') return true;
       if (desc.includes('triangle') && s.type === 'triangle') return true;
       if (desc.includes('text') && s.type === 'text') return true;
+      if (desc.includes('line') && s.type === 'line') return true;
+      if (desc.includes('input') && s.type === 'text_input') return true;
       return false;
     });
     
     if (typeMatches.length > 0) return typeMatches[0];
+    
+    // If no specific matches, return the first shape (fallback)
+    if (shapes.length > 0) {
+      console.log(`🔍 No specific match for "${description}", using first available shape`);
+      return shapes[0];
+    }
     
     return null;
   }
@@ -932,6 +959,7 @@ export class CanvasAPI {
     fill,
     text,
     fontSize,
+    fontFamily,
     align,
     background,
     borderColor,
@@ -993,14 +1021,8 @@ export class CanvasAPI {
     // Calculate fill color based on shape type
     let finalFill;
     if (shapeType === SHAPE_TYPES.TEXT || shapeType === SHAPE_TYPES.TEXT_INPUT) {
-      // Text-specific logic: default to black
-      if (!fill) {
-        finalFill = '#000000'; // Default text to black
-      } else if (fill && this.isDarkColor(fill)) {
-        finalFill = '#FFFFFF'; // White text on dark backgrounds
-      } else {
-        finalFill = this.parseColor(fill); // Use specified color
-      }
+      // Use specified color directly for text shapes
+      finalFill = this.parseColor(fill) || defaults.fill;
     } else {
       // Non-text shapes use normal logic
       finalFill = this.parseColor(fill) || defaults.fill;
@@ -1035,7 +1057,7 @@ export class CanvasAPI {
       case SHAPE_TYPES.TEXT:
         newShape.text = text || defaults.text;
         newShape.fontSize = fontSize || defaults.fontSize;
-        newShape.fontFamily = defaults.fontFamily;
+        newShape.fontFamily = fontFamily || defaults.fontFamily;
         newShape.align = align || 'left'; // Add alignment support
         newShape.width = width || defaults.width;
         newShape.height = height || defaults.height;
@@ -1045,7 +1067,7 @@ export class CanvasAPI {
       case SHAPE_TYPES.TEXT_INPUT:
         newShape.text = text || defaults.text;
         newShape.fontSize = fontSize || defaults.fontSize;
-        newShape.fontFamily = defaults.fontFamily;
+        newShape.fontFamily = fontFamily || defaults.fontFamily;
         newShape.align = align || 'left';
         newShape.width = width || defaults.width;
         newShape.height = height || defaults.height;

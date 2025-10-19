@@ -185,8 +185,13 @@ function Inspector() {
         positionY: selectedShape.y || 0,
         zIndex: selectedShape.zIndex || 0,
         rotation: selectedShape.rotation || 0,
-        scaleX: selectedShape.scaleX || 100,
-        scaleY: selectedShape.scaleY || 100,
+        // Show actual dimensions instead of scale values
+        width: selectedShape.width || 100,
+        height: selectedShape.height || 100,
+        radiusX: selectedShape.radiusX || 50,
+        radiusY: selectedShape.radiusY || 50,
+        scaleX: selectedShape.scaleX || 1,
+        scaleY: selectedShape.scaleY || 1,
         fill: selectedShape.fill || '#3B82F6',
         stroke: selectedShape.stroke || '#8B5CF6',
         strokeWidth: selectedShape.strokeWidth || 2,
@@ -249,19 +254,35 @@ function Inspector() {
     }
   };
 
-  const handleScaleXChange = (value) => {
+  const handleWidthChange = (value) => {
     const newValue = parseFloat(value) || 100;
-    setLocalProperties(prev => ({ ...prev, scaleX: newValue }));
+    setLocalProperties(prev => ({ ...prev, width: newValue }));
     if (selectedShape) {
-      updateShape(selectedShape.id, { scaleX: newValue });
+      updateShape(selectedShape.id, { width: newValue });
     }
   };
 
-  const handleScaleYChange = (value) => {
+  const handleHeightChange = (value) => {
     const newValue = parseFloat(value) || 100;
-    setLocalProperties(prev => ({ ...prev, scaleY: newValue }));
+    setLocalProperties(prev => ({ ...prev, height: newValue }));
     if (selectedShape) {
-      updateShape(selectedShape.id, { scaleY: newValue });
+      updateShape(selectedShape.id, { height: newValue });
+    }
+  };
+
+  const handleRadiusXChange = (value) => {
+    const newValue = parseFloat(value) || 50;
+    setLocalProperties(prev => ({ ...prev, radiusX: newValue }));
+    if (selectedShape) {
+      updateShape(selectedShape.id, { radiusX: newValue });
+    }
+  };
+
+  const handleRadiusYChange = (value) => {
+    const newValue = parseFloat(value) || 50;
+    setLocalProperties(prev => ({ ...prev, radiusY: newValue }));
+    if (selectedShape) {
+      updateShape(selectedShape.id, { radiusY: newValue });
     }
   };
 
@@ -437,26 +458,137 @@ function Inspector() {
             {selectedShape?.type !== SHAPE_TYPES.BEZIER_CURVE && (
               <div>
                 <label className="block text-xs text-gray-600 mb-1">Size</label>
-                <div className="grid grid-cols-2 gap-2">
+                {selectedShape?.type === SHAPE_TYPES.CIRCLE ? (
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-xs text-gray-500">Radius X</label>
+                      <input
+                        type="number"
+                        value={Math.round(localProperties.radiusX || 50)}
+                        onChange={(e) => handleRadiusXChange(e.target.value)}
+                        className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500">Radius Y</label>
+                      <input
+                        type="number"
+                        value={Math.round(localProperties.radiusY || 50)}
+                        onChange={(e) => handleRadiusYChange(e.target.value)}
+                        className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                      />
+                    </div>
+                  </div>
+                ) : selectedShape?.type === SHAPE_TYPES.LINE ? (
                   <div>
-                    <label className="block text-xs text-gray-500">W</label>
+                    <label className="block text-xs text-gray-500 mb-1">Stroke Width</label>
                     <input
                       type="number"
-                      value={Math.round(localProperties.scaleX || 100)}
-                      onChange={(e) => handleScaleXChange(e.target.value)}
+                      value={Math.round(localProperties.strokeWidth || 3)}
+                      onChange={(e) => {
+                        const newValue = parseFloat(e.target.value) || 3;
+                        setLocalProperties(prev => ({ ...prev, strokeWidth: newValue }));
+                        if (selectedShape) {
+                          updateShape(selectedShape.id, { strokeWidth: newValue });
+                        }
+                      }}
+                      min={1}
+                      max={20}
                       className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                     />
                   </div>
-                  <div>
-                    <label className="block text-xs text-gray-500">H</label>
-                    <input
-                      type="number"
-                      value={Math.round(localProperties.scaleY || 100)}
-                      onChange={(e) => handleScaleYChange(e.target.value)}
-                      className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                    />
+                ) : selectedShape?.type === SHAPE_TYPES.TRIANGLE ? (
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-xs text-gray-500">W</label>
+                      <input
+                        type="number"
+                        value={Math.round((localProperties.scaleX || 1) * 100)}
+                        onChange={(e) => {
+                          const newValue = parseFloat(e.target.value) / 100 || 1;
+                          setLocalProperties(prev => ({ ...prev, scaleX: newValue }));
+                          if (selectedShape) {
+                            updateShape(selectedShape.id, { scaleX: newValue });
+                          }
+                        }}
+                        step={10}
+                        className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500">H</label>
+                      <input
+                        type="number"
+                        value={Math.round((localProperties.scaleY || 1) * 100)}
+                        onChange={(e) => {
+                          const newValue = parseFloat(e.target.value) / 100 || 1;
+                          setLocalProperties(prev => ({ ...prev, scaleY: newValue }));
+                          if (selectedShape) {
+                            updateShape(selectedShape.id, { scaleY: newValue });
+                          }
+                        }}
+                        step={10}
+                        className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                      />
+                    </div>
                   </div>
-                </div>
+                ) : selectedShape?.type === SHAPE_TYPES.TEXT || selectedShape?.type === SHAPE_TYPES.TEXT_INPUT ? (
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-xs text-gray-500">W</label>
+                      <input
+                        type="number"
+                        value={Math.round((localProperties.scaleX || 1) * 100)}
+                        onChange={(e) => {
+                          const newValue = parseFloat(e.target.value) / 100 || 1;
+                          setLocalProperties(prev => ({ ...prev, scaleX: newValue }));
+                          if (selectedShape) {
+                            updateShape(selectedShape.id, { scaleX: newValue });
+                          }
+                        }}
+                        step={10}
+                        className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500">H</label>
+                      <input
+                        type="number"
+                        value={Math.round((localProperties.scaleY || 1) * 100)}
+                        onChange={(e) => {
+                          const newValue = parseFloat(e.target.value) / 100 || 1;
+                          setLocalProperties(prev => ({ ...prev, scaleY: newValue }));
+                          if (selectedShape) {
+                            updateShape(selectedShape.id, { scaleY: newValue });
+                          }
+                        }}
+                        step={10}
+                        className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-xs text-gray-500">W</label>
+                      <input
+                        type="number"
+                        value={Math.round(localProperties.width || 100)}
+                        onChange={(e) => handleWidthChange(e.target.value)}
+                        className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500">H</label>
+                      <input
+                        type="number"
+                        value={Math.round(localProperties.height || 100)}
+                        onChange={(e) => handleHeightChange(e.target.value)}
+                        className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>

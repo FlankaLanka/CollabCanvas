@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "vite",
     "dev:server": "node server.js",
+    "dev:agent": "node localServer.js",
     "dev:full": "concurrently \"npm run dev:server\" \"npm run dev\"",
+    "dev:local": "concurrently \"npm run dev:agent\" \"npm run dev\"",
     "build": "vite build",
     "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview"
